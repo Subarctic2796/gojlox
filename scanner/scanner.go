@@ -5,7 +5,6 @@ import (
 
 	"github.com/Subarctic2796/gojlox/errs"
 	"github.com/Subarctic2796/gojlox/token"
-	"github.com/Subarctic2796/gojlox/vm"
 )
 
 type Scanner struct {
@@ -15,8 +14,8 @@ type Scanner struct {
 	start, cur, Line int
 }
 
-func NewScanner(src string, vm vm.VM) *Scanner {
-	return &Scanner{[]rune(src), vm, make([]*token.Token, 0, 16), 0, 0, 1}
+func NewScanner(src string, er errs.ErrorReporter) *Scanner {
+	return &Scanner{[]rune(src), er, make([]*token.Token, 0, 16), 0, 0, 1}
 }
 
 func (s *Scanner) ScanTokens() []*token.Token {
