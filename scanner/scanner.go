@@ -3,13 +3,14 @@ package scanner
 import (
 	"strconv"
 
+	"github.com/Subarctic2796/gojlox/errs"
 	"github.com/Subarctic2796/gojlox/token"
 	"github.com/Subarctic2796/gojlox/vm"
 )
 
 type Scanner struct {
 	src              []rune
-	vm               vm.VM
+	ER               errs.ErrorReporter
 	Tokens           []*token.Token
 	start, cur, Line int
 }
@@ -82,7 +83,7 @@ func (s *Scanner) scanToken() {
 		} else if s.isAlpha(c) {
 			s.identifier()
 		} else {
-			s.vm.ReportErr(s.Line, "Unexpected character")
+			s.ER.ReportErr(s.Line, errs.ErrUnexpectedChar)
 		}
 	}
 }
@@ -147,7 +148,7 @@ func (s *Scanner) addString() {
 	}
 
 	if s.isAtEnd() {
-		s.vm.ReportErr(s.Line, "Unterminated string")
+		s.ER.ReportErr(s.Line, errs.ErrUnterminatedStr)
 		return
 	}
 

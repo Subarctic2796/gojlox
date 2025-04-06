@@ -9,10 +9,11 @@ import (
 
 type Lox struct {
 	HadErr bool
+	CurErr error
 }
 
 func NewLox() *Lox {
-	return &Lox{false}
+	return &Lox{false, nil}
 }
 
 func (l *Lox) RunFile(path string) error {
@@ -32,6 +33,7 @@ func (l *Lox) RunPrompt() error {
 	for {
 		fmt.Print("> ")
 		if !scnr.Scan() {
+			fmt.Print("\n")
 			return scnr.Err()
 		}
 		l.Run(scnr.Text())
@@ -46,11 +48,12 @@ func (l *Lox) Run(src string) {
 	}
 }
 
-func (l *Lox) ReportErr(line int, msg string) {
+func (l *Lox) ReportErr(line int, msg error) {
 	l.Report(line, "", msg)
 }
 
-func (l *Lox) Report(line int, where, msg string) {
-	fmt.Fprintf(os.Stderr, "[line %d] Error%s: %s", line, where, msg)
+func (l *Lox) Report(line int, where string, msg error) {
+	fmt.Fprintf(os.Stderr, "[line %d] Error%s: %s\n", line, where, msg)
 	l.HadErr = true
+	l.CurErr = msg
 }
