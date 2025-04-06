@@ -3,8 +3,11 @@ package lox
 import (
 	"bufio"
 	"fmt"
-	"github.com/Subarctic2796/gojlox/scanner"
 	"os"
+
+	"github.com/Subarctic2796/gojlox/parser"
+	"github.com/Subarctic2796/gojlox/scanner"
+	"github.com/Subarctic2796/gojlox/token"
 )
 
 type Lox struct {
@@ -43,9 +46,12 @@ func (l *Lox) RunPrompt() error {
 
 func (l *Lox) Run(src string) {
 	scanner := scanner.NewScanner(src, l)
-	for _, tok := range scanner.ScanTokens() {
-		fmt.Println(tok)
+	parser := parser.NewParser(scanner.ScanTokens(), l)
+	expr := parser.Parse()
+	if l.HadErr {
+		return
 	}
+	fmt.Println(expr)
 }
 
 func (l *Lox) ReportErr(line int, msg error) {
@@ -56,4 +62,12 @@ func (l *Lox) Report(line int, where string, msg error) {
 	fmt.Fprintf(os.Stderr, "[line %d] Error%s: %s\n", line, where, msg)
 	l.HadErr = true
 	l.CurErr = msg
+}
+
+func (l *Lox) ReportTok(tok *token.Token, msg error) {
+	if tok.Kind == token.EOF {
+		l.Report(tok.Line, " at end", msg)
+	} else {
+		l.Report(tok.Line, fmt.Sprintf(" at '%s'", tok.Lexeme), msg)
+	}
 }
