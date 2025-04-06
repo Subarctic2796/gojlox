@@ -5,18 +5,20 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/Subarctic2796/gojlox/interpreter"
 	"github.com/Subarctic2796/gojlox/parser"
 	"github.com/Subarctic2796/gojlox/scanner"
 	"github.com/Subarctic2796/gojlox/token"
 )
 
 type Lox struct {
-	HadErr bool
-	CurErr error
+	HadErr        bool
+	HadRunTimeErr bool
+	CurErr        error
 }
 
 func NewLox() *Lox {
-	return &Lox{false, nil}
+	return &Lox{false, false, nil}
 }
 
 func (l *Lox) RunFile(path string) error {
@@ -27,6 +29,9 @@ func (l *Lox) RunFile(path string) error {
 	l.Run(string(f))
 	if l.HadErr {
 		os.Exit(65)
+	}
+	if l.HadRunTimeErr {
+		os.Exit(70)
 	}
 	return nil
 }
@@ -51,7 +56,8 @@ func (l *Lox) Run(src string) {
 	if l.HadErr {
 		return
 	}
-	fmt.Println(expr)
+	intrprtr := interpreter.NewInterpreter(l)
+	intrprtr.Interpret(expr)
 }
 
 func (l *Lox) ReportErr(line int, msg error) {
@@ -70,4 +76,9 @@ func (l *Lox) ReportTok(tok *token.Token, msg error) {
 	} else {
 		l.Report(tok.Line, fmt.Sprintf(" at '%s'", tok.Lexeme), msg)
 	}
+}
+
+func (l *Lox) ReportRTErr(msg error) {
+	fmt.Fprintln(os.Stderr, msg)
+	l.HadRunTimeErr = true
 }
