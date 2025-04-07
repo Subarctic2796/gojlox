@@ -9,7 +9,7 @@ import (
 
 func main() {
 	os.Args = os.Args[1:]
-	lox := lox.NewLox()
+	lox := lox.LOX
 	switch len(os.Args) {
 	case 0:
 		lox.RunPrompt()

@@ -26,5 +26,5 @@ type RunTimeErr struct {
 }
 
 func (e *RunTimeErr) Error() string {
-	return fmt.Sprintf("RunTimeError: %s: %s", e.Tok, e.Msg)
+	return fmt.Sprintf("[RunTimeError] %s: %s", e.Tok, e.Msg)
 }

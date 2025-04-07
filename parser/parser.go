@@ -20,16 +20,130 @@ func NewParser(tokens []*token.Token, ER errs.ErrorReporter) *Parser {
 	return &Parser{ER, tokens, 0}
 }
 
-func (p *Parser) Parse() ast.Expr {
-	expr, err := p.expression()
-	if err != nil && errors.Is(err, errs.ErrParse) {
-		return nil
+func (p *Parser) Parse() ([]ast.Stmt, error) {
+	stmts := make([]ast.Stmt, 0, 16)
+	for !p.isAtEnd() {
+		stmt, err := p.declaration()
+		if err != nil {
+			return nil, err
+		}
+		stmts = append(stmts, stmt)
 	}
-	return expr
+	return stmts, nil
+}
+
+func (p *Parser) declaration() (ast.Stmt, error) {
+	if p.match(token.VAR) {
+		val, err := p.varDeclaration()
+		if errors.Is(err, errs.ErrParse) {
+			p.Synchronise()
+			return nil, err
+		}
+		return val, nil
+	}
+	val, err := p.statement()
+	if errors.Is(err, errs.ErrParse) {
+		p.Synchronise()
+		return nil, err
+	}
+	return val, err
+}
+
+func (p *Parser) varDeclaration() (ast.Stmt, error) {
+	name, err := p.consume(token.IDENTIFIER, "Expect variable name")
+	if err != nil {
+		return nil, err
+	}
+	var initializer ast.Expr
+	if p.match(token.EQUAL) {
+		initializer, err = p.expression()
+		if err != nil {
+			return nil, err
+		}
+	}
+	_, err = p.consume(token.SEMICOLON, "Expect ';' after variable declaration")
+	if err != nil {
+		return nil, err
+	}
+	return &ast.Var{Name: name, Initializer: initializer}, nil
+}
+
+func (p *Parser) statement() (ast.Stmt, error) {
+	if p.match(token.PRINT) {
+		return p.printStatement()
+	}
+	if p.match(token.LEFT_BRACE) {
+		block, err := p.block()
+		if err != nil {
+			return nil, err
+		}
+		return &ast.Block{Statements: block}, nil
+	}
+	return p.expressionStatement()
+}
+
+func (p *Parser) block() ([]ast.Stmt, error) {
+	stmts := make([]ast.Stmt, 0, 8)
+	for !p.check(token.RIGHT_BRACE) && !p.isAtEnd() {
+		stmt, err := p.declaration()
+		if err != nil {
+			return nil, err
+		}
+		stmts = append(stmts, stmt)
+	}
+	_, err := p.consume(token.RIGHT_BRACE, "Expect '}' after block")
+	if err != nil {
+		return nil, err
+	}
+	return stmts, nil
+}
+
+func (p *Parser) expressionStatement() (ast.Stmt, error) {
+	expr, err := p.expression()
+	if err != nil {
+		return nil, err
+	}
+	_, err = p.consume(token.SEMICOLON, "Expect ';' after expression")
+	if err != nil {
+		return nil, err
+	}
+	return &ast.Expression{Expression: expr}, nil
+}
+
+func (p *Parser) printStatement() (ast.Stmt, error) {
+	val, err := p.expression()
+	if err != nil {
+		return nil, err
+	}
+	_, err = p.consume(token.SEMICOLON, "Expect ';' after value")
+	if err != nil {
+		return nil, err
+	}
+	return &ast.Print{Expression: val}, nil
 }
 
 func (p *Parser) expression() (ast.Expr, error) {
-	return p.equality()
+	return p.assignment()
+}
+
+func (p *Parser) assignment() (ast.Expr, error) {
+	expr, err := p.equality()
+	if err != nil {
+		return nil, err
+	}
+	if p.match(token.EQUAL) {
+		equals := p.previous()
+		val, err := p.assignment()
+		if err != nil {
+			return nil, err
+		}
+		if vexpr, ok := expr.(*ast.Variable); ok {
+			name := vexpr.Name
+			return &ast.Assign{Name: name, Value: val}, nil
+		}
+		p.parseErr(equals, "Invalid assignment target")
+	}
+	return expr, nil
 }
 
 func (p *Parser) equality() (ast.Expr, error) {
@@ -123,6 +237,10 @@ func (p *Parser) primary() (ast.Expr, error) {
 
 	if p.match(token.NUMBER, token.STRING) {
 		return &ast.Literal{Value: p.previous().Literal}, nil
+	}
+
+	if p.match(token.IDENTIFIER) {
+		return &ast.Variable{Name: p.previous()}, nil
 	}
 
 	if p.match(token.LEFT_PAREN) {

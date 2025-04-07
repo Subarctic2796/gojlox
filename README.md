@@ -8,3 +8,6 @@ cd gojlox
 go build .
 ./main
 ```
+
+# Currently on
+Chap 8.1.3

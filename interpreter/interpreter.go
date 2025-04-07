@@ -10,20 +10,30 @@ import (
 )
 
 type Interpreter struct {
-	ER errs.ErrorReporter
+	ER  errs.ErrorReporter
+	env *Env
 }
 
 func NewInterpreter(ER errs.ErrorReporter) *Interpreter {
-	return &Interpreter{ER}
+	return &Interpreter{ER, NewEnv()}
 }
 
-func (i *Interpreter) Interpret(expr ast.Expr) {
-	val := i.evaluate(expr)
-	if err, ok := val.(error); ok {
-		i.ER.ReportRTErr(err)
-	} else {
-		fmt.Println(i.stringify(val))
+func (i *Interpreter) Interpret(stmts []ast.Stmt) {
+	for _, s := range stmts {
+		val := i.execute(s)
+		if err, ok := val.(error); ok {
+			i.ER.ReportRTErr(err)
+			return
+		}
 	}
+}
+
+func (i *Interpreter) execute(stmt ast.Stmt) error {
+	err := stmt.Accept(i)
+	if err, ok := err.(error); ok {
+		return err
+	}
+	return nil
 }
 
 func (i *Interpreter) stringify(obj any) string {
@@ -42,6 +52,49 @@ func (i *Interpreter) stringify(obj any) string {
 
 func (i *Interpreter) evaluate(expr ast.Expr) any {
 	return expr.Accept(i)
+}
+
+func (i *Interpreter) evaluateBlock(statements []ast.Stmt, env *Env) {
+	prv := i.env
+	i.env = env
+	for _, stmt := range statements {
+		err := i.execute(stmt)
+		if err != nil {
+			break
+		}
+	}
+	i.env = prv
+}
+
+func (i *Interpreter) VisitBlockStmt(stmt *ast.Block) any {
+	i.evaluateBlock(stmt.Statements, NewEnvWithEnclosing(i.env))
+	return nil
+}
+
+func (i *Interpreter) VisitAssignExpr(expr *ast.Assign) any {
+	val := i.evaluate(expr.Value)
+	err := i.env.Assign(expr.Name, val)
+	if err != nil {
+		return err
+	}
+	return val
+}
+
+func (i *Interpreter) VisitVariableExpr(expr *ast.Variable) any {
+	val, err := i.env.Get(expr.Name)
+	if err != nil {
+		return err
+	}
+	return val
+}
+
+func (i *Interpreter) VisitVarStmt(stmt *ast.Var) any {
+	var val any
+	if stmt.Initializer != nil {
+		val = i.evaluate(stmt.Initializer)
+	}
+	i.env.Define(stmt.Name.Lexeme, val)
+	return nil
 }
 
 func (i *Interpreter) VisitBinaryExpr(expr *ast.Binary) any {
@@ -134,6 +187,20 @@ func (i *Interpreter) VisitUnaryExpr(expr *ast.Unary) any {
 	}
 
 	// unreachable
+	return nil
+}
+
+func (i *Interpreter) VisitExpressionStmt(stmt *ast.Expression) any {
+	val := i.evaluate(stmt.Expression)
+	if err, ok := val.(error); ok {
+		return err
+	}
+	return nil
+}
+
+func (i *Interpreter) VisitPrintStmt(stmt *ast.Print) any {
+	val := i.evaluate(stmt.Expression)
+	fmt.Println(i.stringify(val))
 	return nil
 }
 

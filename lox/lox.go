@@ -2,9 +2,11 @@ package lox
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"os"
 
+	"github.com/Subarctic2796/gojlox/errs"
 	"github.com/Subarctic2796/gojlox/interpreter"
 	"github.com/Subarctic2796/gojlox/parser"
 	"github.com/Subarctic2796/gojlox/scanner"
@@ -20,6 +22,11 @@ type Lox struct {
 func NewLox() *Lox {
 	return &Lox{false, false, nil}
 }
+
+var (
+	LOX      = NewLox()
+	INTRPRTR = interpreter.NewInterpreter(LOX)
+)
 
 func (l *Lox) RunFile(path string) error {
 	f, err := os.ReadFile(path)
@@ -52,12 +59,12 @@ func (l *Lox) RunPrompt() error {
 func (l *Lox) Run(src string) {
 	scanner := scanner.NewScanner(src, l)
 	parser := parser.NewParser(scanner.ScanTokens(), l)
-	expr := parser.Parse()
+	stmts, err := parser.Parse()
 	if l.HadErr {
+		fmt.Println(err)
 		return
 	}
-	intrprtr := interpreter.NewInterpreter(l)
-	intrprtr.Interpret(expr)
+	INTRPRTR.Interpret(stmts)
 }
 
 func (l *Lox) ReportErr(line int, msg error) {
@@ -79,6 +86,9 @@ func (l *Lox) ReportTok(tok *token.Token, msg error) {
 }
 
 func (l *Lox) ReportRTErr(msg error) {
-	fmt.Fprintln(os.Stderr, msg)
+	err := &errs.RunTimeErr{}
+	if errors.As(msg, &err) {
+		fmt.Fprintf(os.Stderr, "%s\n[line %d]\n", msg, err.Tok.Line)
+	}
 	l.HadRunTimeErr = true
 }
