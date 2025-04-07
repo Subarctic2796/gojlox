@@ -69,8 +69,17 @@ func (p *Parser) varDeclaration() (ast.Stmt, error) {
 }
 
 func (p *Parser) statement() (ast.Stmt, error) {
+	if p.match(token.FOR) {
+		return p.forStatement()
+	}
+	if p.match(token.IF) {
+		return p.ifStatement()
+	}
 	if p.match(token.PRINT) {
 		return p.printStatement()
+	}
+	if p.match(token.WHILE) {
+		return p.whileStatement()
 	}
 	if p.match(token.LEFT_BRACE) {
 		block, err := p.block()
@@ -80,6 +89,129 @@ func (p *Parser) statement() (ast.Stmt, error) {
 		return &ast.Block{Statements: block}, nil
 	}
 	return p.expressionStatement()
+}
+
+func (p *Parser) forStatement() (ast.Stmt, error) {
+	_, err := p.consume(token.LEFT_PAREN, "Expect '(' after 'for'")
+	if err != nil {
+		return nil, err
+	}
+	var init ast.Stmt
+	if p.match(token.SEMICOLON) {
+		init = nil
+	} else if p.match(token.VAR) {
+		init, err = p.varDeclaration()
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		init, err = p.expressionStatement()
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	var cond ast.Expr
+	if !p.check(token.SEMICOLON) {
+		cond, err = p.expression()
+		if err != nil {
+			return nil, err
+		}
+	}
+	_, err = p.consume(token.SEMICOLON, "Expect  ';' after loop condition")
+	if err != nil {
+		return nil, err
+	}
+
+	var incr ast.Expr
+	if !p.check(token.RIGHT_PAREN) {
+		incr, err = p.expression()
+		if err != nil {
+			return nil, err
+		}
+	}
+	_, err = p.consume(token.RIGHT_PAREN, "Expect ')' after for clauses")
+	if err != nil {
+		return nil, err
+	}
+
+	body, err := p.statement()
+	if err != nil {
+		return nil, err
+	}
+
+	if incr != nil {
+		body = &ast.Block{
+			Statements: []ast.Stmt{
+				body,
+				&ast.Expression{Expression: incr},
+			},
+		}
+	}
+
+	if cond == nil {
+		cond = &ast.Literal{Value: true}
+	}
+	body = &ast.While{Condition: cond, Body: body}
+
+	if init != nil {
+		body = &ast.Block{
+			Statements: []ast.Stmt{init, body},
+		}
+	}
+
+	return body, nil
+}
+
+func (p *Parser) whileStatement() (ast.Stmt, error) {
+	_, err := p.consume(token.LEFT_PAREN, "Expect '(' after 'while'")
+	if err != nil {
+		return nil, err
+	}
+	cond, err := p.expression()
+	if err != nil {
+		return nil, err
+	}
+	_, err = p.consume(token.RIGHT_PAREN, "Expect ')' after condition")
+	if err != nil {
+		return nil, err
+	}
+	body, err := p.statement()
+	if err != nil {
+		return nil, err
+	}
+	return &ast.While{Condition: cond, Body: body}, nil
+}
+
+func (p *Parser) ifStatement() (ast.Stmt, error) {
+	_, err := p.consume(token.LEFT_PAREN, "Expect '(' after 'if'")
+	if err != nil {
+		return nil, err
+	}
+	cond, err := p.expression()
+	if err != nil {
+		return nil, err
+	}
+	_, err = p.consume(token.RIGHT_PAREN, "Expect ')' after if condition")
+	if err != nil {
+		return nil, err
+	}
+	thenBranch, err := p.statement()
+	if err != nil {
+		return nil, err
+	}
+	var elseBranch ast.Stmt = nil
+	if p.match(token.ELSE) {
+		elseBranch, err = p.statement()
+		if err != nil {
+			return nil, err
+		}
+	}
+	return &ast.If{
+		Condition:  cond,
+		ThenBranch: thenBranch,
+		ElseBranch: elseBranch,
+	}, nil
 }
 
 func (p *Parser) block() ([]ast.Stmt, error) {
@@ -127,7 +259,7 @@ func (p *Parser) expression() (ast.Expr, error) {
 }
 
 func (p *Parser) assignment() (ast.Expr, error) {
-	expr, err := p.equality()
+	expr, err := p.or()
 	if err != nil {
 		return nil, err
 	}
@@ -142,6 +274,38 @@ func (p *Parser) assignment() (ast.Expr, error) {
 			return &ast.Assign{Name: name, Value: val}, nil
 		}
 		p.parseErr(equals, "Invalid assignment target")
+	}
+	return expr, nil
+}
+
+func (p *Parser) or() (ast.Expr, error) {
+	expr, err := p.and()
+	if err != nil {
+		return nil, err
+	}
+	for p.match(token.OR) {
+		opr := p.previous()
+		rhs, err := p.and()
+		if err != nil {
+			return nil, err
+		}
+		expr = &ast.Logical{Left: expr, Operator: opr, Right: rhs}
+	}
+	return expr, nil
+}
+
+func (p *Parser) and() (ast.Expr, error) {
+	expr, err := p.equality()
+	if err != nil {
+		return nil, err
+	}
+	for p.match(token.AND) {
+		opr := p.previous()
+		rhs, err := p.equality()
+		if err != nil {
+			return nil, err
+		}
+		expr = &ast.Logical{Left: expr, Operator: opr, Right: rhs}
 	}
 	return expr, nil
 }

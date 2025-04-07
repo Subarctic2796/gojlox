@@ -66,6 +66,45 @@ func (i *Interpreter) evaluateBlock(statements []ast.Stmt, env *Env) {
 	i.env = prv
 }
 
+func (i *Interpreter) VisitWhileStmt(stmt *ast.While) any {
+	for i.isTruthy(i.evaluate(stmt.Condition)) {
+		err := i.execute(stmt.Body)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (i *Interpreter) VisitLogicalExpr(expr *ast.Logical) any {
+	lhs := i.evaluate(expr.Left)
+	if expr.Operator.Kind == token.OR {
+		if i.isTruthy(lhs) {
+			return lhs
+		}
+	} else {
+		if !i.isTruthy(lhs) {
+			return lhs
+		}
+	}
+	return i.evaluate(expr.Right)
+}
+
+func (i *Interpreter) VisitIfStmt(stmt *ast.If) any {
+	if i.isTruthy(i.evaluate(stmt.Condition)) {
+		err := i.execute(stmt.ThenBranch)
+		if err != nil {
+			return err
+		}
+	} else if stmt.ElseBranch != nil {
+		err := i.execute(stmt.ElseBranch)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (i *Interpreter) VisitBlockStmt(stmt *ast.Block) any {
 	i.evaluateBlock(stmt.Statements, NewEnvWithEnclosing(i.env))
 	return nil
