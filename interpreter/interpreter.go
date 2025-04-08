@@ -2,7 +2,6 @@ package interpreter
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/Subarctic2796/gojlox/ast"
 	"github.com/Subarctic2796/gojlox/errs"
@@ -20,230 +19,250 @@ func NewInterpreter(ER errs.ErrorReporter) *Interpreter {
 
 func (i *Interpreter) Interpret(stmts []ast.Stmt) {
 	for _, s := range stmts {
-		val := i.execute(s)
-		if err, ok := val.(error); ok {
+		_, err := i.execute(s)
+		if err != nil {
 			i.ER.ReportRTErr(err)
 			return
 		}
 	}
 }
 
-func (i *Interpreter) evaluate(expr ast.Expr) any {
+func (i *Interpreter) evaluate(expr ast.Expr) (any, error) {
 	return expr.Accept(i)
 }
 
-func (i *Interpreter) execute(stmt ast.Stmt) error {
-	err := stmt.Accept(i)
-	if err, ok := err.(error); ok {
-		return err
-	}
-	return nil
+func (i *Interpreter) execute(stmt ast.Stmt) (any, error) {
+	return stmt.Accept(i)
 }
 
 func (i *Interpreter) stringify(obj any) string {
 	if obj == nil {
 		return "nil"
 	}
-	if nobj, ok := obj.(float64); ok {
-		txt := fmt.Sprint(nobj)
-		if strings.HasSuffix(txt, ".0") {
-			txt = txt[:len(txt)-2]
-		}
-		return txt
-	}
 	return fmt.Sprint(obj)
 }
 
-func (i *Interpreter) executeBlock(statements []ast.Stmt, env *Env) {
+func (i *Interpreter) executeBlock(statements []ast.Stmt, env *Env) (any, error) {
 	prv := i.env
+	defer func() { i.env = prv }()
 	i.env = env
 	for _, stmt := range statements {
-		err := i.execute(stmt)
+		_, err := i.execute(stmt)
 		if err != nil {
-			break
+			return nil, err
 		}
 	}
-	i.env = prv
+	return nil, nil
 }
 
-func (i *Interpreter) VisitWhileStmt(stmt *ast.While) any {
-	for i.isTruthy(i.evaluate(stmt.Condition)) {
-		err := i.execute(stmt.Body)
+func (i *Interpreter) VisitWhileStmt(stmt *ast.While) (any, error) {
+	cond, err := i.evaluate(stmt.Condition)
+	if err != nil {
+		return nil, err
+	}
+	for ; i.isTruthy(cond); cond, _ = i.evaluate(stmt.Condition) {
+		_, err := i.execute(stmt.Body)
 		if err != nil {
-			return err
+			return nil, err
 		}
 	}
-	return nil
+	return nil, nil
 }
 
-func (i *Interpreter) VisitLogicalExpr(expr *ast.Logical) any {
-	lhs := i.evaluate(expr.Left)
+func (i *Interpreter) VisitLogicalExpr(expr *ast.Logical) (any, error) {
+	lhs, err := i.evaluate(expr.Left)
+	if err != nil {
+		return nil, err
+	}
 	if expr.Operator.Kind == token.OR {
 		if i.isTruthy(lhs) {
-			return lhs
+			return lhs, nil
 		}
 	} else {
 		if !i.isTruthy(lhs) {
-			return lhs
+			return lhs, nil
 		}
 	}
 	return i.evaluate(expr.Right)
 }
 
-func (i *Interpreter) VisitIfStmt(stmt *ast.If) any {
-	if i.isTruthy(i.evaluate(stmt.Condition)) {
-		err := i.execute(stmt.ThenBranch)
+func (i *Interpreter) VisitIfStmt(stmt *ast.If) (any, error) {
+	cond, err := i.evaluate(stmt.Condition)
+	if err != nil {
+		return nil, err
+	}
+	if i.isTruthy(cond) {
+		_, err = i.execute(stmt.ThenBranch)
 		if err != nil {
-			return err
+			return nil, err
 		}
 	} else if stmt.ElseBranch != nil {
-		err := i.execute(stmt.ElseBranch)
+		_, err = i.execute(stmt.ElseBranch)
 		if err != nil {
-			return err
+			return nil, err
 		}
 	}
-	return nil
+	return nil, nil
 }
 
-func (i *Interpreter) VisitBlockStmt(stmt *ast.Block) any {
+func (i *Interpreter) VisitBlockStmt(stmt *ast.Block) (any, error) {
 	i.executeBlock(stmt.Statements, NewEnvWithEnclosing(i.env))
-	return nil
+	return nil, nil
 }
 
-func (i *Interpreter) VisitAssignExpr(expr *ast.Assign) any {
-	val := i.evaluate(expr.Value)
-	err := i.env.Assign(expr.Name, val)
+func (i *Interpreter) VisitAssignExpr(expr *ast.Assign) (any, error) {
+	val, err := i.evaluate(expr.Value)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	return val
+	err = i.env.Assign(expr.Name, val)
+	if err != nil {
+		return nil, err
+	}
+	return val, nil
 }
 
-func (i *Interpreter) VisitVariableExpr(expr *ast.Variable) any {
+func (i *Interpreter) VisitVariableExpr(expr *ast.Variable) (any, error) {
 	val, err := i.env.Get(expr.Name)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	return val
+	return val, nil
 }
 
-func (i *Interpreter) VisitVarStmt(stmt *ast.Var) any {
+func (i *Interpreter) VisitVarStmt(stmt *ast.Var) (any, error) {
 	var val any
+	var err error
 	if stmt.Initializer != nil {
-		val = i.evaluate(stmt.Initializer)
+		val, err = i.evaluate(stmt.Initializer)
+		if err != nil {
+			return nil, err
+		}
 	}
 	i.env.Define(stmt.Name.Lexeme, val)
-	return nil
+	return nil, nil
 }
 
-func (i *Interpreter) VisitBinaryExpr(expr *ast.Binary) any {
-	lhs := i.evaluate(expr.Left)
-	rhs := i.evaluate(expr.Right)
+func (i *Interpreter) VisitBinaryExpr(expr *ast.Binary) (any, error) {
+	lhs, err := i.evaluate(expr.Left)
+	if err != nil {
+		return nil, err
+	}
+	rhs, err := i.evaluate(expr.Right)
+	if err != nil {
+		return nil, err
+	}
 
 	switch expr.Operator.Kind {
 	case token.GREATER:
 		err := i.checkNumberOperands(expr.Operator, lhs, rhs)
 		if err != nil {
-			return err
+			return nil, err
 		}
-		return (lhs.(float64)) > (rhs.(float64))
+		return (lhs.(float64)) > (rhs.(float64)), nil
 	case token.GREATER_EQUAL:
 		err := i.checkNumberOperands(expr.Operator, lhs, rhs)
 		if err != nil {
-			return err
+			return nil, err
 		}
-		return (lhs.(float64)) >= (rhs.(float64))
+		return (lhs.(float64)) >= (rhs.(float64)), nil
 	case token.LESS:
 		err := i.checkNumberOperands(expr.Operator, lhs, rhs)
 		if err != nil {
-			return err
+			return nil, err
 		}
-		return (lhs.(float64)) < (rhs.(float64))
+		return (lhs.(float64)) < (rhs.(float64)), nil
 	case token.LESS_EQUAL:
 		err := i.checkNumberOperands(expr.Operator, lhs, rhs)
 		if err != nil {
-			return err
+			return nil, err
 		}
-		return (lhs.(float64)) <= (rhs.(float64))
+		return lhs.(float64) <= rhs.(float64), nil
 	case token.MINUS:
 		err := i.checkNumberOperands(expr.Operator, lhs, rhs)
 		if err != nil {
-			return err
+			return nil, err
 		}
-		return (lhs.(float64)) - (rhs.(float64))
+		return (lhs.(float64)) - (rhs.(float64)), nil
 	case token.BANG_EQUAL:
-		return !i.isEqual(lhs, rhs)
+		return !i.isEqual(lhs, rhs), nil
 	case token.EQUAL_EQUAL:
-		return i.isEqual(lhs, rhs)
+		return i.isEqual(lhs, rhs), nil
 	case token.PLUS:
 		if l, ok := lhs.(float64); ok {
 			if r, ok := rhs.(float64); ok {
-				return l + r
+				return l + r, nil
 			}
 		}
 		if l, ok := lhs.(string); ok {
 			if r, ok := rhs.(string); ok {
-				return l + r
+				return l + r, nil
 			}
 		}
-		return &errs.RunTimeErr{
+		return nil, &errs.RunTimeErr{
 			Tok: expr.Operator,
 			Msg: "Operands must be two numbers or two strings",
 		}
 	case token.SLASH:
 		err := i.checkNumberOperands(expr.Operator, lhs, rhs)
 		if err != nil {
-			return err
+			return nil, err
 		}
-		return (lhs.(float64)) / (rhs.(float64))
+		return (lhs.(float64)) / (rhs.(float64)), nil
 	case token.STAR:
 		err := i.checkNumberOperands(expr.Operator, lhs, rhs)
 		if err != nil {
-			return err
+			return nil, err
 		}
-		return (lhs.(float64)) * (rhs.(float64))
+		return (lhs.(float64)) * (rhs.(float64)), nil
 	}
 	// unreachable
-	return nil
+	return nil, nil
 }
 
-func (i *Interpreter) VisitGroupingExpr(expr *ast.Grouping) any {
+func (i *Interpreter) VisitGroupingExpr(expr *ast.Grouping) (any, error) {
 	return i.evaluate(expr.Expression)
 }
 
-func (i *Interpreter) VisitLiteralExpr(expr *ast.Literal) any {
-	return expr.Value
+func (i *Interpreter) VisitLiteralExpr(expr *ast.Literal) (any, error) {
+	return expr.Value, nil
 }
 
-func (i *Interpreter) VisitUnaryExpr(expr *ast.Unary) any {
-	rhs := i.evaluate(expr.Right)
+func (i *Interpreter) VisitUnaryExpr(expr *ast.Unary) (any, error) {
+	rhs, err := i.evaluate(expr.Right)
+	if err != nil {
+		return nil, err
+	}
 	switch expr.Operator.Kind {
 	case token.MINUS:
 		err := i.checkNumberOperand(expr.Operator, rhs)
 		if err != nil {
-			return err
+			return nil, err
 		}
-		return -(rhs.(float64))
+		return -rhs.(float64), nil
 	case token.BANG:
-		return !i.isTruthy(rhs)
+		return !i.isTruthy(rhs), nil
 	}
 
 	// unreachable
-	return nil
+	return nil, nil
 }
 
-func (i *Interpreter) VisitExpressionStmt(stmt *ast.Expression) any {
-	val := i.evaluate(stmt.Expression)
-	if err, ok := val.(error); ok {
-		return err
+func (i *Interpreter) VisitExpressionStmt(stmt *ast.Expression) (any, error) {
+	_, err := i.evaluate(stmt.Expression)
+	if err != nil {
+		return nil, err
 	}
-	return nil
+	return nil, nil
 }
 
-func (i *Interpreter) VisitPrintStmt(stmt *ast.Print) any {
-	val := i.evaluate(stmt.Expression)
+func (i *Interpreter) VisitPrintStmt(stmt *ast.Print) (any, error) {
+	val, err := i.evaluate(stmt.Expression)
+	if err != nil {
+		return nil, err
+	}
 	fmt.Println(i.stringify(val))
-	return nil
+	return nil, nil
 }
 
 func (i *Interpreter) isTruthy(obj any) bool {
