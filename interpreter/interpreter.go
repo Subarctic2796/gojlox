@@ -54,7 +54,7 @@ func (i *Interpreter) evaluate(expr ast.Expr) any {
 	return expr.Accept(i)
 }
 
-func (i *Interpreter) evaluateBlock(statements []ast.Stmt, env *Env) {
+func (i *Interpreter) executeBlock(statements []ast.Stmt, env *Env) {
 	prv := i.env
 	i.env = env
 	for _, stmt := range statements {
@@ -106,7 +106,7 @@ func (i *Interpreter) VisitIfStmt(stmt *ast.If) any {
 }
 
 func (i *Interpreter) VisitBlockStmt(stmt *ast.Block) any {
-	i.evaluateBlock(stmt.Statements, NewEnvWithEnclosing(i.env))
+	i.executeBlock(stmt.Statements, NewEnvWithEnclosing(i.env))
 	return nil
 }
 
@@ -186,7 +186,10 @@ func (i *Interpreter) VisitBinaryExpr(expr *ast.Binary) any {
 				return l + r
 			}
 		}
-		return &errs.RunTimeErr{Tok: expr.Operator, Msg: "Operands must be two numbers or two strings"}
+		return &errs.RunTimeErr{
+			Tok: expr.Operator,
+			Msg: "Operands must be two numbers or two strings",
+		}
 	case token.SLASH:
 		err := i.checkNumberOperands(expr.Operator, lhs, rhs)
 		if err != nil {

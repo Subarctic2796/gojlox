@@ -3,6 +3,7 @@ package parser
 import (
 	"errors"
 	"fmt"
+	"slices"
 
 	"github.com/Subarctic2796/gojlox/ast"
 	"github.com/Subarctic2796/gojlox/errs"
@@ -438,11 +439,9 @@ func (p *Parser) previous() *token.Token {
 }
 
 func (p *Parser) match(kinds ...token.TokenType) bool {
-	for _, t := range kinds {
-		if p.check(t) {
-			p.advance()
-			return true
-		}
+	if slices.ContainsFunc(kinds, p.check) {
+		p.advance()
+		return true
 	}
 	return false
 }
