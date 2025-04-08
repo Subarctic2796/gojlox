@@ -9,12 +9,15 @@ import (
 )
 
 type Interpreter struct {
-	ER  errs.ErrorReporter
-	env *Env
+	ER      errs.ErrorReporter
+	Globals *Env
+	env     *Env
 }
 
 func NewInterpreter(ER errs.ErrorReporter) *Interpreter {
-	return &Interpreter{ER, NewEnv()}
+	globals := NewEnv()
+	globals.Define("clock", ClockFn{})
+	return &Interpreter{ER, globals, globals}
 }
 
 func (i *Interpreter) Interpret(stmts []ast.Stmt) {
@@ -53,6 +56,52 @@ func (i *Interpreter) executeBlock(statements []ast.Stmt, env *Env) (any, error)
 		}
 	}
 	return nil, nil
+}
+
+func (i *Interpreter) VisitReturnStmt(stmt *ast.Return) (any, error) {
+	var val any
+	var err error
+	if stmt.Value != nil {
+		val, err = i.evaluate(stmt.Value)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return nil, &ReturnErr{Value: val}
+}
+
+func (i *Interpreter) VisitFunctionStmt(stmt *ast.Function) (any, error) {
+	fn := NewLoxFn(stmt, i.env)
+	i.env.Define(stmt.Name.Lexeme, fn)
+	return nil, nil
+}
+
+func (i *Interpreter) VisitCallExpr(expr *ast.Call) (any, error) {
+	callee, err := i.evaluate(expr.Callee)
+	if err != nil {
+		return nil, err
+	}
+	args := make([]any, 0)
+	for _, arg := range expr.Arguments {
+		a, err := i.evaluate(arg)
+		if err != nil {
+			return nil, err
+		}
+		args = append(args, a)
+	}
+
+	fn, ok := callee.(LoxCallable)
+	if !ok {
+		return nil, &errs.RunTimeErr{
+			Tok: expr.Paren,
+			Msg: "Can only call functions and classes",
+		}
+	}
+	if len(args) != fn.Arity() {
+		msg := fmt.Sprintf("Expected %d arguments but got %d", fn.Arity(), len(args))
+		return nil, &errs.RunTimeErr{Tok: expr.Paren, Msg: msg}
+	}
+	return fn.Call(i, args)
 }
 
 func (i *Interpreter) VisitWhileStmt(stmt *ast.While) (any, error) {
@@ -106,8 +155,7 @@ func (i *Interpreter) VisitIfStmt(stmt *ast.If) (any, error) {
 }
 
 func (i *Interpreter) VisitBlockStmt(stmt *ast.Block) (any, error) {
-	i.executeBlock(stmt.Statements, NewEnvWithEnclosing(i.env))
-	return nil, nil
+	return i.executeBlock(stmt.Statements, NewEnvWithEnclosing(i.env))
 }
 
 func (i *Interpreter) VisitAssignExpr(expr *ast.Assign) (any, error) {
