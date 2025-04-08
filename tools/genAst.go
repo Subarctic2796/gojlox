@@ -77,12 +77,12 @@ package ast
 import "github.com/Subarctic2796/gojlox/token"
 
 type {{.BN}} interface {
-    Accept(visitor {{.BN}}Visitor) any
+    Accept(visitor {{.BN}}Visitor) (any, error)
 }
 
 type {{.BN}}Visitor interface {
     {{range $name, $fields := .Classes -}}
-    Visit{{$name}}{{$.BN}}({{$.bn}} *{{$name}}) any
+    Visit{{$name}}{{$.BN}}({{$.bn}} *{{$name}}) (any, error)
     {{end}}
 }
 {{range $name, $fields := .Classes}}
@@ -92,7 +92,7 @@ type {{$name}} struct {
     {{end}}
 }
 
-func ({{$.bn}} *{{$name}}) Accept(visitor {{$.BN}}Visitor) any {
+func ({{$.bn}} *{{$name}}) Accept(visitor {{$.BN}}Visitor) (any, error) {
     return visitor.Visit{{$name}}{{$.BN}}({{$.bn}})
 }
 {{end}}`

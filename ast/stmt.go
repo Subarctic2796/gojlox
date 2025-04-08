@@ -4,23 +4,23 @@ package ast
 import "github.com/Subarctic2796/gojlox/token"
 
 type Stmt interface {
-	Accept(visitor StmtVisitor) any
+	Accept(visitor StmtVisitor) (any, error)
 }
 
 type StmtVisitor interface {
-	VisitBlockStmt(stmt *Block) any
-	VisitExpressionStmt(stmt *Expression) any
-	VisitIfStmt(stmt *If) any
-	VisitPrintStmt(stmt *Print) any
-	VisitVarStmt(stmt *Var) any
-	VisitWhileStmt(stmt *While) any
+	VisitBlockStmt(stmt *Block) (any, error)
+	VisitExpressionStmt(stmt *Expression) (any, error)
+	VisitIfStmt(stmt *If) (any, error)
+	VisitPrintStmt(stmt *Print) (any, error)
+	VisitVarStmt(stmt *Var) (any, error)
+	VisitWhileStmt(stmt *While) (any, error)
 }
 
 type Block struct {
 	Statements []Stmt
 }
 
-func (stmt *Block) Accept(visitor StmtVisitor) any {
+func (stmt *Block) Accept(visitor StmtVisitor) (any, error) {
 	return visitor.VisitBlockStmt(stmt)
 }
 
@@ -28,7 +28,7 @@ type Expression struct {
 	Expression Expr
 }
 
-func (stmt *Expression) Accept(visitor StmtVisitor) any {
+func (stmt *Expression) Accept(visitor StmtVisitor) (any, error) {
 	return visitor.VisitExpressionStmt(stmt)
 }
 
@@ -38,7 +38,7 @@ type If struct {
 	ElseBranch Stmt
 }
 
-func (stmt *If) Accept(visitor StmtVisitor) any {
+func (stmt *If) Accept(visitor StmtVisitor) (any, error) {
 	return visitor.VisitIfStmt(stmt)
 }
 
@@ -46,7 +46,7 @@ type Print struct {
 	Expression Expr
 }
 
-func (stmt *Print) Accept(visitor StmtVisitor) any {
+func (stmt *Print) Accept(visitor StmtVisitor) (any, error) {
 	return visitor.VisitPrintStmt(stmt)
 }
 
@@ -55,7 +55,7 @@ type Var struct {
 	Initializer Expr
 }
 
-func (stmt *Var) Accept(visitor StmtVisitor) any {
+func (stmt *Var) Accept(visitor StmtVisitor) (any, error) {
 	return visitor.VisitVarStmt(stmt)
 }
 
@@ -64,6 +64,6 @@ type While struct {
 	Body      Stmt
 }
 
-func (stmt *While) Accept(visitor StmtVisitor) any {
+func (stmt *While) Accept(visitor StmtVisitor) (any, error) {
 	return visitor.VisitWhileStmt(stmt)
 }

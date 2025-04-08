@@ -28,6 +28,10 @@ func (i *Interpreter) Interpret(stmts []ast.Stmt) {
 	}
 }
 
+func (i *Interpreter) evaluate(expr ast.Expr) any {
+	return expr.Accept(i)
+}
+
 func (i *Interpreter) execute(stmt ast.Stmt) error {
 	err := stmt.Accept(i)
 	if err, ok := err.(error); ok {
@@ -48,10 +52,6 @@ func (i *Interpreter) stringify(obj any) string {
 		return txt
 	}
 	return fmt.Sprint(obj)
-}
-
-func (i *Interpreter) evaluate(expr ast.Expr) any {
-	return expr.Accept(i)
 }
 
 func (i *Interpreter) executeBlock(statements []ast.Stmt, env *Env) {
