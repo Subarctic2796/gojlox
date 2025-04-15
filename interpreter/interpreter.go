@@ -89,14 +89,36 @@ func (i *Interpreter) VisitReturnStmt(stmt *ast.Return) (any, error) {
 }
 
 func (i *Interpreter) VisitClassStmt(stmt *ast.Class) (any, error) {
+	var supercls any = nil
+	var err error
+	if stmt.Superclass != nil {
+		supercls, err = i.evaluate(stmt.Superclass)
+		if err != nil {
+			return nil, err
+		}
+		if _, ok := supercls.(*LoxClass); !ok {
+			return nil, &errs.RunTimeErr{
+				Tok: stmt.Superclass.Name,
+				Msg: "Superclass must be a class",
+			}
+		}
+	}
 	i.env.Define(stmt.Name.Lexeme, nil)
+	if stmt.Superclass != nil {
+		i.env = NewEnvWithEnclosing(i.env)
+		i.env.Define("super", supercls)
+	}
 	methods := make(map[string]*LoxFn)
 	for _, method := range stmt.Methods {
 		isinit := method.Name.Lexeme == "init"
 		methods[method.Name.Lexeme] = NewLoxFn(method, i.env, isinit)
 	}
-	klass := NewLoxClass(stmt.Name.Lexeme, methods)
-	err := i.env.Assign(stmt.Name, klass)
+	scls, _ := supercls.(*LoxClass)
+	klass := NewLoxClass(stmt.Name.Lexeme, scls, methods)
+	if supercls != nil {
+		i.env = i.env.Enclosing
+	}
+	err = i.env.Assign(stmt.Name, klass)
 	if err != nil {
 		return nil, err
 	}
@@ -107,6 +129,20 @@ func (i *Interpreter) VisitFunctionStmt(stmt *ast.Function) (any, error) {
 	fn := NewLoxFn(stmt, i.env, false)
 	i.env.Define(stmt.Name.Lexeme, fn)
 	return nil, nil
+}
+
+func (i *Interpreter) VisitSuperExpr(expr *ast.Super) (any, error) {
+	dist := i.locals[expr]
+	superclass := i.env.GetAt(dist, "super").(*LoxClass)
+	obj := i.env.GetAt(dist-1, "this").(*LoxInstnace)
+	method := superclass.FindMethod(expr.Method.Lexeme)
+	if method == nil {
+		return nil, &errs.RunTimeErr{
+			Tok: expr.Method,
+			Msg: fmt.Sprintf("Undefined property '%s'", expr.Method.Lexeme),
+		}
+	}
+	return method.Bind(obj), nil
 }
 
 func (i *Interpreter) VisitCallExpr(expr *ast.Call) (any, error) {

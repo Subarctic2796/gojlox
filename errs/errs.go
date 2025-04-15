@@ -37,6 +37,9 @@ const (
 	ReturnTopLevel            ResolverErrMsg = "Can't return from top-level code"
 	ReturnFromInit            ResolverErrMsg = "Can't return a value from an initializer"
 	ThisOutSideClass          ResolverErrMsg = "Can't use 'this' outside of a class"
+	SuperOutSideClass         ResolverErrMsg = "Can't use 'super' outside of a class"
+	SuperWithNoSuperClass     ResolverErrMsg = "Can't use 'super' in a class with no superclass"
+	SelfInheritance           ResolverErrMsg = "A class can't inherit from itself"
 )
 
 type ResolverErr struct {

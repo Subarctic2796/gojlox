@@ -41,3 +41,58 @@ class Cake {
 var cake = Cake();
 cake.flavour = "Chocolate";
 cake.taste();
+
+print "";
+print "inheritance";
+print "";
+
+print "methods";
+print "";
+
+class Doughnut {
+    cook() {
+        print "Fry until golden brown";
+    }
+}
+
+class BostonCream < Doughnut {}
+BostonCream().cook();
+
+print "";
+print "calling super";
+print "";
+
+class ChocoDoughnut < Doughnut {
+    cook() {
+        super.cook();
+        print "Pipe full of custard and coat with chocolate";
+    }
+}
+
+ChocoDoughnut().cook();
+
+print "";
+print "semantics of 'super'";
+print "";
+
+class A {
+    method() {
+        print "A method";
+    }
+}
+
+class B < A {
+    method() {
+        print "B method";
+    }
+
+    test() {
+        super.method();
+    }
+}
+
+class C < B {}
+
+C().test();
+
+print "";

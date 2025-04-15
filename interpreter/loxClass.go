@@ -3,17 +3,21 @@ package interpreter
 import "fmt"
 
 type LoxClass struct {
-	Name    string
-	Methods map[string]*LoxFn
+	Name       string
+	SuperClass *LoxClass
+	Methods    map[string]*LoxFn
 }
 
-func NewLoxClass(name string, methods map[string]*LoxFn) *LoxClass {
-	return &LoxClass{name, methods}
+func NewLoxClass(name string, superclass *LoxClass, methods map[string]*LoxFn) *LoxClass {
+	return &LoxClass{name, superclass, methods}
 }
 
 func (lc *LoxClass) FindMethod(name string) *LoxFn {
 	if val, ok := lc.Methods[name]; ok {
 		return val
+	}
+	if lc.SuperClass != nil {
+		return lc.SuperClass.FindMethod(name)
 	}
 	return nil
 }

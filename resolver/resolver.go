@@ -21,6 +21,7 @@ type clsType int
 const (
 	CLS_NONE clsType = iota
 	CLS_CLASS
+	CLS_SUBCLASS
 )
 
 type Resolver struct {
@@ -129,6 +130,20 @@ func (r *Resolver) VisitSetExpr(expr *ast.Set) (any, error) {
 
 func (r *Resolver) VisitGetExpr(expr *ast.Get) (any, error) {
 	r.resolveExpr(expr.Object)
+	return nil, nil
+}
+
+func (r *Resolver) VisitSuperExpr(expr *ast.Super) (any, error) {
+	if r.curCLS == CLS_NONE {
+		r.ER.ReportTok(expr.Keyword, &errs.ResolverErr{
+			Type: errs.SuperOutSideClass,
+		})
+	} else if r.curCLS != CLS_SUBCLASS {
+		r.ER.ReportTok(expr.Keyword, &errs.ResolverErr{
+			Type: errs.SuperWithNoSuperClass,
+		})
+	}
+	r.resolveLocal(expr, expr.Keyword)
 	return nil, nil
 }
 
@@ -251,6 +266,17 @@ func (r *Resolver) VisitClassStmt(stmt *ast.Class) (any, error) {
 	r.curCLS = CLS_CLASS
 	r.declare(stmt.Name)
 	r.define(stmt.Name)
+	if stmt.Superclass != nil {
+		if stmt.Name.Lexeme == stmt.Superclass.Name.Lexeme {
+			r.ER.ReportTok(stmt.Superclass.Name, &errs.ResolverErr{
+				Type: errs.SelfInheritance,
+			})
+		}
+		r.curCLS = CLS_SUBCLASS
+		r.resolveExpr(stmt.Superclass)
+		r.beginScope()
+		r.scopes[len(r.scopes)-1]["super"] = true
+	}
 	r.beginScope()
 	r.scopes[len(r.scopes)-1]["this"] = true
 	for _, method := range stmt.Methods {
@@ -261,6 +287,9 @@ func (r *Resolver) VisitClassStmt(stmt *ast.Class) (any, error) {
 		r.resolveFunc(method, decl)
 	}
 	r.endScope()
+	if stmt.Superclass != nil {
+		r.endScope()
+	}
 	r.curCLS = enclosingCLS
 	return nil, nil
 }

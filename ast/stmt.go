@@ -28,8 +28,9 @@ func (stmt *Block) Accept(visitor StmtVisitor) (any, error) {
 }
 
 type Class struct {
-	Name    *token.Token
-	Methods []*Function
+	Name       *token.Token
+	Superclass *Variable
+	Methods    []*Function
 }
 
 func (stmt *Class) Accept(visitor StmtVisitor) (any, error) {
