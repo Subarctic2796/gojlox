@@ -9,6 +9,7 @@ import (
 	"github.com/Subarctic2796/gojlox/errs"
 	"github.com/Subarctic2796/gojlox/interpreter"
 	"github.com/Subarctic2796/gojlox/parser"
+	"github.com/Subarctic2796/gojlox/resolver"
 	"github.com/Subarctic2796/gojlox/scanner"
 	"github.com/Subarctic2796/gojlox/token"
 )
@@ -61,7 +62,13 @@ func (l *Lox) Run(src string) {
 	parser := parser.NewParser(scanner.ScanTokens(), l)
 	stmts, err := parser.Parse()
 	if l.HadErr {
-		fmt.Println(err)
+		fmt.Fprint(os.Stderr, err)
+		return
+	}
+
+	resolver := resolver.NewResolver(l, INTRPRTR)
+	resolver.ResolveStmts(stmts)
+	if l.HadErr {
 		return
 	}
 	INTRPRTR.Interpret(stmts)

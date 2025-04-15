@@ -35,6 +35,18 @@ func (e *Env) Get(name *token.Token) (any, error) {
 	return nil, &errs.RunTimeErr{Tok: name, Msg: msg}
 }
 
+func (e *Env) GetAt(dist int, name string) any {
+	return e.Ancestor(dist).Values[name]
+}
+
+func (e *Env) Ancestor(dist int) *Env {
+	env := e
+	for i := 0; i < dist; i++ {
+		env = env.Enclosing
+	}
+	return env
+}
+
 func (e *Env) Assign(name *token.Token, val any) error {
 	if _, ok := e.Values[name.Lexeme]; ok {
 		e.Values[name.Lexeme] = val
@@ -45,4 +57,8 @@ func (e *Env) Assign(name *token.Token, val any) error {
 	}
 	msg := fmt.Sprintf("Undefined variable '%s'", name.Lexeme)
 	return &errs.RunTimeErr{Tok: name, Msg: msg}
+}
+
+func (e *Env) AssignAt(dist int, name *token.Token, val any) {
+	e.Ancestor(dist).Values[name.Lexeme] = val
 }

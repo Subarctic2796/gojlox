@@ -12,12 +12,18 @@ type Interpreter struct {
 	ER      errs.ErrorReporter
 	Globals *Env
 	env     *Env
+	locals  map[ast.Expr]int
 }
 
 func NewInterpreter(ER errs.ErrorReporter) *Interpreter {
 	globals := NewEnv()
 	globals.Define("clock", ClockFn{})
-	return &Interpreter{ER, globals, globals}
+	return &Interpreter{
+		ER,
+		globals,
+		globals,
+		make(map[ast.Expr]int),
+	}
 }
 
 func (i *Interpreter) Interpret(stmts []ast.Stmt) {
@@ -28,6 +34,10 @@ func (i *Interpreter) Interpret(stmts []ast.Stmt) {
 			return
 		}
 	}
+}
+
+func (i *Interpreter) Resolve(expr ast.Expr, depth int) {
+	i.locals[expr] = depth
 }
 
 func (i *Interpreter) evaluate(expr ast.Expr) (any, error) {
@@ -43,6 +53,14 @@ func (i *Interpreter) stringify(obj any) string {
 		return "nil"
 	}
 	return fmt.Sprint(obj)
+}
+
+func (i *Interpreter) lookUpVariable(name *token.Token, expr ast.Expr) (any, error) {
+	if dist, ok := i.locals[expr]; ok {
+		return i.env.GetAt(dist, name.Lexeme), nil
+	} else {
+		return i.Globals.Get(name)
+	}
 }
 
 func (i *Interpreter) executeBlock(statements []ast.Stmt, env *Env) (any, error) {
@@ -163,19 +181,19 @@ func (i *Interpreter) VisitAssignExpr(expr *ast.Assign) (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	err = i.env.Assign(expr.Name, val)
-	if err != nil {
-		return nil, err
+	if dist, ok := i.locals[expr]; ok {
+		i.env.AssignAt(dist, expr.Name, val)
+	} else {
+		err = i.Globals.Assign(expr.Name, val)
+		if err != nil {
+			return nil, err
+		}
 	}
 	return val, nil
 }
 
 func (i *Interpreter) VisitVariableExpr(expr *ast.Variable) (any, error) {
-	val, err := i.env.Get(expr.Name)
-	if err != nil {
-		return nil, err
-	}
-	return val, nil
+	return i.lookUpVariable(expr.Name, expr)
 }
 
 func (i *Interpreter) VisitVarStmt(stmt *ast.Var) (any, error) {
