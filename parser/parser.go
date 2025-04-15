@@ -34,6 +34,9 @@ func (p *Parser) Parse() ([]ast.Stmt, error) {
 }
 
 func (p *Parser) declaration() (ast.Stmt, error) {
+	if p.match(token.CLASS) {
+		return p.classDeclaration()
+	}
 	if p.match(token.FUN) {
 		return p.function("function")
 	}
@@ -53,7 +56,31 @@ func (p *Parser) declaration() (ast.Stmt, error) {
 	return val, err
 }
 
-func (p *Parser) function(kind string) (ast.Stmt, error) {
+func (p *Parser) classDeclaration() (ast.Stmt, error) {
+	name, err := p.consume(token.IDENTIFIER, "Expect class name")
+	if err != nil {
+		return nil, err
+	}
+	_, err = p.consume(token.LEFT_BRACE, "Expect '{' before class body")
+	if err != nil {
+		return nil, err
+	}
+	methods := make([]*ast.Function, 0)
+	for !p.check(token.RIGHT_BRACE) && !p.isAtEnd() {
+		method, err := p.function("method")
+		if err != nil {
+			return nil, err
+		}
+		methods = append(methods, method)
+	}
+	_, err = p.consume(token.RIGHT_BRACE, "Expect '}' after class body")
+	if err != nil {
+		return nil, err
+	}
+	return &ast.Class{Name: name, Methods: methods}, nil
+}
+
+func (p *Parser) function(kind string) (*ast.Function, error) {
 	msg := fmt.Sprintf("Expect %s name", kind)
 	name, err := p.consume(token.IDENTIFIER, msg)
 	if err != nil {
@@ -341,6 +368,12 @@ func (p *Parser) assignment() (ast.Expr, error) {
 		if vexpr, ok := expr.(*ast.Variable); ok {
 			name := vexpr.Name
 			return &ast.Assign{Name: name, Value: val}, nil
+		} else if get, ok := expr.(*ast.Get); ok {
+			return &ast.Set{
+				Object: get.Object,
+				Name:   get.Name,
+				Value:  val,
+			}, nil
 		}
 		p.parseErr(equals, "Invalid assignment target")
 	}
@@ -468,6 +501,12 @@ func (p *Parser) call() (ast.Expr, error) {
 			if err != nil {
 				return nil, err
 			}
+		} else if p.match(token.DOT) {
+			name, err := p.consume(token.IDENTIFIER, "Expect property name after '.'")
+			if err != nil {
+				return nil, err
+			}
+			expr = &ast.Get{Object: expr, Name: name}
 		} else {
 			break
 		}
@@ -512,6 +551,10 @@ func (p *Parser) primary() (ast.Expr, error) {
 
 	if p.match(token.NUMBER, token.STRING) {
 		return &ast.Literal{Value: p.previous().Literal}, nil
+	}
+
+	if p.match(token.THIS) {
+		return &ast.This{Keyword: p.previous()}, nil
 	}
 
 	if p.match(token.IDENTIFIER) {

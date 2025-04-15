@@ -88,8 +88,23 @@ func (i *Interpreter) VisitReturnStmt(stmt *ast.Return) (any, error) {
 	return nil, &ReturnErr{Value: val}
 }
 
+func (i *Interpreter) VisitClassStmt(stmt *ast.Class) (any, error) {
+	i.env.Define(stmt.Name.Lexeme, nil)
+	methods := make(map[string]*LoxFn)
+	for _, method := range stmt.Methods {
+		isinit := method.Name.Lexeme == "init"
+		methods[method.Name.Lexeme] = NewLoxFn(method, i.env, isinit)
+	}
+	klass := NewLoxClass(stmt.Name.Lexeme, methods)
+	err := i.env.Assign(stmt.Name, klass)
+	if err != nil {
+		return nil, err
+	}
+	return nil, nil
+}
+
 func (i *Interpreter) VisitFunctionStmt(stmt *ast.Function) (any, error) {
-	fn := NewLoxFn(stmt, i.env)
+	fn := NewLoxFn(stmt, i.env, false)
 	i.env.Define(stmt.Name.Lexeme, fn)
 	return nil, nil
 }
@@ -120,6 +135,44 @@ func (i *Interpreter) VisitCallExpr(expr *ast.Call) (any, error) {
 		return nil, &errs.RunTimeErr{Tok: expr.Paren, Msg: msg}
 	}
 	return fn.Call(i, args)
+}
+
+func (i *Interpreter) VisitGetExpr(expr *ast.Get) (any, error) {
+	obj, err := i.evaluate(expr.Object)
+	if err != nil {
+		return nil, err
+	}
+	if inst, ok := obj.(*LoxInstnace); ok {
+		return inst.Get(expr.Name)
+	}
+	return nil, &errs.RunTimeErr{
+		Tok: expr.Name,
+		Msg: "Only instances have properties",
+	}
+}
+
+func (i *Interpreter) VisitThisExpr(expr *ast.This) (any, error) {
+	return i.lookUpVariable(expr.Keyword, expr)
+}
+
+func (i *Interpreter) VisitSetExpr(expr *ast.Set) (any, error) {
+	obj, err := i.evaluate(expr.Object)
+	if err != nil {
+		return nil, err
+	}
+	inst, ok := obj.(*LoxInstnace)
+	if !ok {
+		return nil, &errs.RunTimeErr{
+			Tok: expr.Name,
+			Msg: "Only instances have fields",
+		}
+	}
+	val, err := i.evaluate(expr.Value)
+	if err != nil {
+		return nil, err
+	}
+	inst.Set(expr.Name, val)
+	return val, nil
 }
 
 func (i *Interpreter) VisitWhileStmt(stmt *ast.While) (any, error) {

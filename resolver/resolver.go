@@ -10,8 +10,17 @@ import (
 type fnType int
 
 const (
-	NONE fnType = iota
-	FUNC
+	FN_NONE fnType = iota
+	FN_FUNC
+	FN_INIT
+	FN_METHOD
+)
+
+type clsType int
+
+const (
+	CLS_NONE clsType = iota
+	CLS_CLASS
 )
 
 type Resolver struct {
@@ -19,10 +28,17 @@ type Resolver struct {
 	intprt *interpreter.Interpreter
 	scopes []map[string]bool
 	curFN  fnType
+	curCLS clsType
 }
 
 func NewResolver(er errs.ErrorReporter, intptr *interpreter.Interpreter) *Resolver {
-	return &Resolver{er, intptr, make([]map[string]bool, 0), NONE}
+	return &Resolver{
+		er,
+		intptr,
+		make([]map[string]bool, 0),
+		FN_NONE,
+		CLS_NONE,
+	}
 }
 
 func (r *Resolver) ResolveStmts(stmts []ast.Stmt) {
@@ -94,6 +110,28 @@ func (r *Resolver) VisitAssignExpr(expr *ast.Assign) (any, error) {
 	return nil, nil
 }
 
+func (r *Resolver) VisitThisExpr(expr *ast.This) (any, error) {
+	if r.curCLS == CLS_NONE {
+		r.ER.ReportTok(expr.Keyword, &errs.ResolverErr{
+			Type: errs.ThisOutSideClass,
+		})
+		return nil, nil
+	}
+	r.resolveLocal(expr, expr.Keyword)
+	return nil, nil
+}
+
+func (r *Resolver) VisitSetExpr(expr *ast.Set) (any, error) {
+	r.resolveExpr(expr.Value)
+	r.resolveExpr(expr.Object)
+	return nil, nil
+}
+
+func (r *Resolver) VisitGetExpr(expr *ast.Get) (any, error) {
+	r.resolveExpr(expr.Object)
+	return nil, nil
+}
+
 func (r *Resolver) VisitBinaryExpr(expr *ast.Binary) (any, error) {
 	r.resolveExpr(expr.Left)
 	r.resolveExpr(expr.Right)
@@ -158,7 +196,7 @@ func (r *Resolver) VisitExpressionStmt(stmt *ast.Expression) (any, error) {
 func (r *Resolver) VisitFunctionStmt(stmt *ast.Function) (any, error) {
 	r.declare(stmt.Name)
 	r.define(stmt.Name)
-	r.resolveFunc(stmt, FUNC)
+	r.resolveFunc(stmt, FN_FUNC)
 	return nil, nil
 }
 
@@ -177,12 +215,17 @@ func (r *Resolver) VisitPrintStmt(stmt *ast.Print) (any, error) {
 }
 
 func (r *Resolver) VisitReturnStmt(stmt *ast.Return) (any, error) {
-	if r.curFN == NONE {
+	if r.curFN == FN_NONE {
 		r.ER.ReportTok(stmt.Keyword, &errs.ResolverErr{
 			Type: errs.ReturnTopLevel,
 		})
 	}
 	if stmt.Value != nil {
+		if r.curFN == FN_INIT {
+			r.ER.ReportTok(stmt.Keyword, &errs.ResolverErr{
+				Type: errs.ReturnFromInit,
+			})
+		}
 		r.resolveExpr(stmt.Value)
 	}
 	return nil, nil
@@ -200,5 +243,24 @@ func (r *Resolver) VisitVarStmt(stmt *ast.Var) (any, error) {
 func (r *Resolver) VisitWhileStmt(stmt *ast.While) (any, error) {
 	r.resolveExpr(stmt.Condition)
 	r.resolveStmt(stmt.Body)
+	return nil, nil
+}
+
+func (r *Resolver) VisitClassStmt(stmt *ast.Class) (any, error) {
+	enclosingCLS := r.curCLS
+	r.curCLS = CLS_CLASS
+	r.declare(stmt.Name)
+	r.define(stmt.Name)
+	r.beginScope()
+	r.scopes[len(r.scopes)-1]["this"] = true
+	for _, method := range stmt.Methods {
+		decl := FN_METHOD
+		if method.Name.Lexeme == "init" {
+			decl = FN_INIT
+		}
+		r.resolveFunc(method, decl)
+	}
+	r.endScope()
+	r.curCLS = enclosingCLS
 	return nil, nil
 }

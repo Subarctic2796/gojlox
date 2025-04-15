@@ -1,0 +1,43 @@
+class DevonShireCream {
+    serveOn() {
+        return "Scones";
+    }
+}
+
+print DevonShireCream;
+
+class Bagel {}
+var bagel = Bagel();
+print bagel;
+
+class Bacon {
+    eat() {
+        print "Crunch Crunch Crunch";
+    }
+}
+Bacon().eat();
+
+class Thing {
+    showVar(t) {
+        print "showing " + this.a + " and " + t;
+    }
+}
+
+var t = "this is t";
+var thing = Thing();
+thing.a = "this is a";
+thing.showVar(t);
+
+print "weird cake example";
+print "";
+
+class Cake {
+    taste() {
+        var adj = "delicious";
+        print "The " + this.flavour + " cake is " + adj + "!";
+    }
+}
+
+var cake = Cake();
+cake.flavour = "Chocolate";
+cake.taste();

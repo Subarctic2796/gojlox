@@ -62,7 +62,7 @@ func (l *Lox) Run(src string) {
 	parser := parser.NewParser(scanner.ScanTokens(), l)
 	stmts, err := parser.Parse()
 	if l.HadErr {
-		fmt.Fprint(os.Stderr, err)
+		fmt.Fprintf(os.Stderr, "%s\n", err)
 		return
 	}
 

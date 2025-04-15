@@ -35,6 +35,8 @@ const (
 	AlreadyInScope            ResolverErrMsg = "Already a variable with this name in this scope"
 	ReadLocalInOwnInitializer ResolverErrMsg = "Can't read local variable in its own initializer"
 	ReturnTopLevel            ResolverErrMsg = "Can't return from top-level code"
+	ReturnFromInit            ResolverErrMsg = "Can't return a value from an initializer"
+	ThisOutSideClass          ResolverErrMsg = "Can't use 'this' outside of a class"
 )
 
 type ResolverErr struct {
