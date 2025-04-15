@@ -10,5 +10,5 @@ go build .
 ```
 
 # Currently on
-Chap 4
-challenge: 4
+Chap 8
+challenge: 1

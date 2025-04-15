@@ -363,7 +363,14 @@ func (i *Interpreter) VisitBinaryExpr(expr *ast.Binary) (any, error) {
 		if err != nil {
 			return nil, err
 		}
-		return (lhs.(float64)) / (rhs.(float64)), nil
+		r, _ := rhs.(float64)
+		if r == 0.0 {
+			return nil, &errs.RunTimeErr{
+				Tok: expr.Operator,
+				Msg: "Division by 0",
+			}
+		}
+		return lhs.(float64) / r, nil
 	case token.STAR:
 		err := i.checkNumberOperands(expr.Operator, lhs, rhs)
 		if err != nil {
