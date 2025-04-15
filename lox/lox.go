@@ -25,8 +25,7 @@ func NewLox() *Lox {
 }
 
 var (
-	LOX      = NewLox()
-	INTRPRTR = interpreter.NewInterpreter(LOX)
+	INTRPRTR = interpreter.NewInterpreter(nil)
 )
 
 func (l *Lox) RunFile(path string) error {
@@ -59,6 +58,9 @@ func (l *Lox) RunPrompt() error {
 
 func (l *Lox) Run(src string) {
 	scanner := scanner.NewScanner(src, l)
+	if l.HadErr {
+		return
+	}
 	parser := parser.NewParser(scanner.ScanTokens(), l)
 	stmts, err := parser.Parse()
 	if l.HadErr {
@@ -71,6 +73,7 @@ func (l *Lox) Run(src string) {
 	if l.HadErr {
 		return
 	}
+	INTRPRTR.ER = l
 	INTRPRTR.Interpret(stmts)
 }
 

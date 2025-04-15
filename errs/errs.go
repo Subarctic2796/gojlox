@@ -15,9 +15,10 @@ type ErrorReporter interface {
 }
 
 var (
-	ErrUnexpectedChar  = errors.New("Unexpected character")
-	ErrUnterminatedStr = errors.New("Unterminated string")
-	ErrParse           = errors.New("Parser Error")
+	ErrUnexpectedChar      = errors.New("Unexpected character")
+	ErrUnterminatedStr     = errors.New("Unterminated string")
+	ErrUnterminatedComment = errors.New("Unterminated comment")
+	ErrParse               = errors.New("Parser Error")
 )
 
 type RunTimeErr struct {

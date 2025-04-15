@@ -68,6 +68,8 @@ func (s *Scanner) scanToken() {
 			for s.peek() != '\n' && !s.isAtEnd() {
 				s.advance()
 			}
+		} else if s.match('*') {
+			s.multiLineComment()
 		} else {
 			s.addToken(token.SLASH)
 		}
@@ -85,6 +87,34 @@ func (s *Scanner) scanToken() {
 			s.ER.ReportErr(s.Line, errs.ErrUnexpectedChar)
 		}
 	}
+}
+
+func (s *Scanner) multiLineComment() {
+	nesting := 1
+	for nesting > 0 && !s.isAtEnd() {
+		p, pn := s.peek(), s.peekNext()
+		if p == '\n' || s.src[s.cur] == '\n' {
+			s.Line++
+		}
+		if p == '/' && pn == '*' {
+			s.advance()
+			s.advance()
+			nesting++
+			continue
+		}
+		if p == '*' && pn == '/' {
+			s.advance()
+			s.advance()
+			nesting--
+			continue
+		}
+		s.advance()
+	}
+	if s.isAtEnd() {
+		s.ER.ReportErr(s.Line, errs.ErrUnterminatedComment)
+		return
+	}
+	s.advance()
 }
 
 func (s *Scanner) identifier() {
