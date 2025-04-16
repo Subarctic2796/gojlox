@@ -8,19 +8,20 @@ import (
 )
 
 type LoxFn struct {
-	Func    *ast.Function
+	Name    string
+	Func    *ast.Lambda
 	Closure *Env
 	IsInit  bool
 }
 
-func NewLoxFn(fn *ast.Function, closure *Env, isInit bool) *LoxFn {
-	return &LoxFn{fn, closure, isInit}
+func NewLoxFn(name string, fn *ast.Lambda, closure *Env, isInit bool) *LoxFn {
+	return &LoxFn{name, fn, closure, isInit}
 }
 
 func (fn *LoxFn) Bind(inst *LoxInstnace) *LoxFn {
 	env := NewEnv(fn.Closure)
 	env.Define("this", inst)
-	return &LoxFn{fn.Func, env, fn.IsInit}
+	return &LoxFn{fn.Name, fn.Func, env, fn.IsInit}
 }
 
 func (fn *LoxFn) Call(intprt *Interpreter, args []any) (any, error) {
@@ -49,6 +50,6 @@ func (fn *LoxFn) Arity() int {
 	return len(fn.Func.Params)
 }
 
-func (fn LoxFn) String() string {
-	return fmt.Sprintf("<fn %s>", fn.Func.Name.Lexeme)
+func (fn *LoxFn) String() string {
+	return fmt.Sprintf("<fn %s>", fn.Name)
 }

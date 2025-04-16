@@ -117,7 +117,7 @@ func (i *Interpreter) VisitClassStmt(stmt *ast.Class) (any, error) {
 	methods := make(map[string]*LoxFn)
 	for _, method := range stmt.Methods {
 		isinit := method.Name.Lexeme == "init"
-		methods[method.Name.Lexeme] = NewLoxFn(method, i.env, isinit)
+		methods[method.Name.Lexeme] = NewLoxFn(method.Name.Lexeme, method.Func, i.env, isinit)
 	}
 	scls, _ := supercls.(*LoxClass)
 	klass := NewLoxClass(stmt.Name.Lexeme, scls, methods)
@@ -132,9 +132,14 @@ func (i *Interpreter) VisitClassStmt(stmt *ast.Class) (any, error) {
 }
 
 func (i *Interpreter) VisitFunctionStmt(stmt *ast.Function) (any, error) {
-	fn := NewLoxFn(stmt, i.env, false)
+	name := stmt.Name.Lexeme
+	fn := NewLoxFn(name, stmt.Func, i.env, false)
 	i.env.Define(stmt.Name.Lexeme, fn)
 	return nil, nil
+}
+
+func (i *Interpreter) VisitLambdaExpr(expr *ast.Lambda) (any, error) {
+	return NewLoxFn("", expr, i.env, false), nil
 }
 
 func (i *Interpreter) VisitSuperExpr(expr *ast.Super) (any, error) {

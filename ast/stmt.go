@@ -53,9 +53,8 @@ func (stmt *Expression) Accept(visitor StmtVisitor) (any, error) {
 }
 
 type Function struct {
-	Name   *token.Token
-	Params []*token.Token
-	Body   []Stmt
+	Name *token.Token
+	Func *Lambda
 }
 
 func (stmt *Function) Accept(visitor StmtVisitor) (any, error) {

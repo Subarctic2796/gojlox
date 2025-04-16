@@ -13,6 +13,7 @@ type ExprVisitor interface {
 	VisitCallExpr(expr *Call) (any, error)
 	VisitGetExpr(expr *Get) (any, error)
 	VisitGroupingExpr(expr *Grouping) (any, error)
+	VisitLambdaExpr(expr *Lambda) (any, error)
 	VisitLiteralExpr(expr *Literal) (any, error)
 	VisitLogicalExpr(expr *Logical) (any, error)
 	VisitSetExpr(expr *Set) (any, error)
@@ -66,6 +67,15 @@ type Grouping struct {
 
 func (expr *Grouping) Accept(visitor ExprVisitor) (any, error) {
 	return visitor.VisitGroupingExpr(expr)
+}
+
+type Lambda struct {
+	Params []*token.Token
+	Body   []Stmt
+}
+
+func (expr *Lambda) Accept(visitor ExprVisitor) (any, error) {
+	return visitor.VisitLambdaExpr(expr)
 }
 
 type Literal struct {

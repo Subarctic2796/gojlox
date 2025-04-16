@@ -41,7 +41,8 @@ func (p *Parser) declaration() (ast.Stmt, error) {
 	if p.match(token.CLASS) {
 		return p.classDeclaration()
 	}
-	if p.match(token.FUN) {
+	if p.check(token.FUN) && p.checkNext(token.IDENTIFIER) {
+		p.consume(token.FUN, "")
 		return p.function("function")
 	}
 	if p.match(token.VAR) {
@@ -98,11 +99,20 @@ func (p *Parser) function(kind string) (*ast.Function, error) {
 	if err != nil {
 		return nil, err
 	}
-	msg = fmt.Sprintf("Expect '(' after %s name", kind)
-	_, err = p.consume(token.LEFT_PAREN, msg)
+	body, err := p.lambda(kind)
 	if err != nil {
 		return nil, err
 	}
+	return &ast.Function{Name: name, Func: body}, nil
+}
+
+func (p *Parser) lambda(kind string) (*ast.Lambda, error) {
+	msg := fmt.Sprintf("Expect '(' after %s name", kind)
+	_, err := p.consume(token.LEFT_PAREN, msg)
+	if err != nil {
+		return nil, err
+	}
+
 	params := make([]*token.Token, 0)
 	if !p.check(token.RIGHT_PAREN) {
 		for {
@@ -119,6 +129,7 @@ func (p *Parser) function(kind string) (*ast.Function, error) {
 			}
 		}
 	}
+
 	_, err = p.consume(token.RIGHT_PAREN, "Expect ')' after parameters")
 	if err != nil {
 		return nil, err
@@ -134,7 +145,7 @@ func (p *Parser) function(kind string) (*ast.Function, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &ast.Function{Name: name, Params: params, Body: body}, nil
+	return &ast.Lambda{Params: params, Body: body}, nil
 }
 
 func (p *Parser) varDeclaration() (ast.Stmt, error) {
@@ -603,6 +614,10 @@ func (p *Parser) primary() (ast.Expr, error) {
 		return &ast.This{Keyword: p.previous()}, nil
 	}
 
+	if p.match(token.FUN) {
+		return p.lambda("function")
+	}
+
 	if p.match(token.IDENTIFIER) {
 		return &ast.Variable{Name: p.previous()}, nil
 	}
@@ -657,6 +672,16 @@ func (p *Parser) check(kind token.TokenType) bool {
 		return false
 	}
 	return p.peek().Kind == kind
+}
+
+func (p *Parser) checkNext(kind token.TokenType) bool {
+	if p.isAtEnd() {
+		return false
+	}
+	if p.tokens[p.cur+1].Kind == token.EOF {
+		return false
+	}
+	return p.tokens[p.cur+1].Kind == kind
 }
 
 func (p *Parser) peek() *token.Token {

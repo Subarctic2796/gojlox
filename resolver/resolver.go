@@ -65,7 +65,7 @@ func (r *Resolver) resolveLocal(expr ast.Expr, name *token.Token) {
 	}
 }
 
-func (r *Resolver) resolveFunc(fn *ast.Function, kind fnType) {
+func (r *Resolver) resolveLambda(fn *ast.Lambda, kind fnType) {
 	enclosingFun := r.curFN
 	r.curFN = kind
 	r.beginScope()
@@ -108,6 +108,11 @@ func (r *Resolver) define(name *token.Token) {
 func (r *Resolver) VisitAssignExpr(expr *ast.Assign) (any, error) {
 	r.resolveExpr(expr.Value)
 	r.resolveLocal(expr, expr.Name)
+	return nil, nil
+}
+
+func (r *Resolver) VisitLambdaExpr(expr *ast.Lambda) (any, error) {
+	r.resolveLambda(expr, fn_FUNC)
 	return nil, nil
 }
 
@@ -209,7 +214,7 @@ func (r *Resolver) VisitExpressionStmt(stmt *ast.Expression) (any, error) {
 func (r *Resolver) VisitFunctionStmt(stmt *ast.Function) (any, error) {
 	r.declare(stmt.Name)
 	r.define(stmt.Name)
-	r.resolveFunc(stmt, fn_FUNC)
+	r.resolveLambda(stmt.Func, fn_FUNC)
 	return nil, nil
 }
 
@@ -286,7 +291,7 @@ func (r *Resolver) VisitClassStmt(stmt *ast.Class) (any, error) {
 		if method.Name.Lexeme == "init" {
 			decl = fn_INIT
 		}
-		r.resolveFunc(method, decl)
+		r.resolveLambda(method.Func, decl)
 	}
 	r.endScope()
 	if stmt.Superclass != nil {
