@@ -12,13 +12,13 @@ import (
 
 // TODO: even if we error we should still return the AST
 type Parser struct {
-	ER     errs.ErrorReporter
-	tokens []*token.Token
-	cur    int
+	ER             errs.ErrorReporter
+	tokens         []*token.Token
+	cur, loopDepth int
 }
 
 func NewParser(tokens []*token.Token, ER errs.ErrorReporter) *Parser {
-	return &Parser{ER, tokens, 0}
+	return &Parser{ER, tokens, 0, 0}
 }
 
 func (p *Parser) Parse() ([]ast.Stmt, []error) {
@@ -157,6 +157,9 @@ func (p *Parser) varDeclaration() (ast.Stmt, error) {
 }
 
 func (p *Parser) statement() (ast.Stmt, error) {
+	if p.match(token.BREAK) {
+		return p.breakStatement()
+	}
 	if p.match(token.FOR) {
 		return p.forStatement()
 	}
@@ -182,6 +185,17 @@ func (p *Parser) statement() (ast.Stmt, error) {
 	return p.expressionStatement()
 }
 
+func (p *Parser) breakStatement() (ast.Stmt, error) {
+	if p.loopDepth == 0 {
+		p.parseErr(p.previous(), "Must be in a loop to use 'break'")
+	}
+	_, err := p.consume(token.SEMICOLON, "Expect ';' after 'break'")
+	if err != nil {
+		return nil, err
+	}
+	return &ast.Break{}, nil
+}
+
 func (p *Parser) returnStatement() (ast.Stmt, error) {
 	keyword := p.previous()
 	var val ast.Expr
@@ -204,6 +218,7 @@ func (p *Parser) forStatement() (ast.Stmt, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	var init ast.Stmt
 	if p.match(token.SEMICOLON) {
 		init = nil
@@ -243,6 +258,8 @@ func (p *Parser) forStatement() (ast.Stmt, error) {
 		return nil, err
 	}
 
+	p.loopDepth++
+	defer func() { p.loopDepth-- }()
 	body, err := p.statement()
 	if err != nil {
 		return nil, err
@@ -276,6 +293,7 @@ func (p *Parser) whileStatement() (ast.Stmt, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	cond, err := p.expression()
 	if err != nil {
 		return nil, err
@@ -284,6 +302,9 @@ func (p *Parser) whileStatement() (ast.Stmt, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	p.loopDepth++
+	defer func() { p.loopDepth-- }()
 	body, err := p.statement()
 	if err != nil {
 		return nil, err

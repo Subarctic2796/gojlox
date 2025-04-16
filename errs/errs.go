@@ -11,7 +11,7 @@ type ErrorReporter interface {
 	ReportErr(line int, msg error)
 	ReportTok(tok *token.Token, msg error)
 	Report(line int, where string, msg error)
-	ReportRTErr(msg error)
+	ReportRunTimeErr(msg error)
 }
 
 var (

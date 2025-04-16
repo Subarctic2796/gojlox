@@ -20,5 +20,5 @@ go run .
 ```
 
 # Currently on
-Chap 8
-challenge: 1
+Chap 10
+challenge: 2

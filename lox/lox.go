@@ -66,8 +66,8 @@ func (l *Lox) Run(src string, intprt *interpreter.Interpreter) {
 		return
 	}
 
-	resolver := resolver.NewResolver(l, intprt)
-	resolver.ResolveStmts(stmts)
+	rslvr := resolver.NewResolver(l, intprt)
+	rslvr.ResolveStmts(stmts)
 	if l.HadErr {
 		return
 	}
@@ -92,7 +92,7 @@ func (l *Lox) ReportTok(tok *token.Token, msg error) {
 	}
 }
 
-func (l *Lox) ReportRTErr(msg error) {
+func (l *Lox) ReportRunTimeErr(msg error) {
 	err := &errs.RunTimeErr{}
 	if errors.As(msg, &err) {
 		fmt.Fprintf(os.Stderr, "%s\n[line %d]\n", msg, err.Tok.Line)

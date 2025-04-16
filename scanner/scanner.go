@@ -122,11 +122,7 @@ func (s *Scanner) identifier() {
 		s.advance()
 	}
 	txt := string(s.src[s.start:s.cur])
-	if kind, ok := token.KEYWORDS[txt]; ok {
-		s.addToken(kind)
-	} else {
-		s.addToken(token.IDENTIFIER)
-	}
+	s.addToken(token.LookUpKeyWord(txt))
 }
 
 func (s *Scanner) isAlphaNumeric(c rune) bool {
@@ -186,13 +182,6 @@ func (s *Scanner) addString() {
 	s.addTokenWithLit(token.STRING, val)
 }
 
-func (s *Scanner) peek() rune {
-	if s.isAtEnd() {
-		return 0
-	}
-	return s.src[s.cur]
-}
-
 func (s *Scanner) addMatchToken(expected rune, t1, t2 token.TokenType) {
 	if s.match(expected) {
 		s.addToken(t1)
@@ -212,13 +201,15 @@ func (s *Scanner) match(expected rune) bool {
 	return true
 }
 
-func (s *Scanner) addToken(kind token.TokenType) {
-	s.addTokenWithLit(kind, nil)
+func (s *Scanner) peek() rune {
+	if s.isAtEnd() {
+		return 0
+	}
+	return s.src[s.cur]
 }
 
-func (s *Scanner) addTokenWithLit(kind token.TokenType, lit any) {
-	txt := string(s.src[s.start:s.cur])
-	s.Tokens = append(s.Tokens, &token.Token{Kind: kind, Lexeme: txt, Literal: lit, Line: s.Line})
+func (s *Scanner) isAtEnd() bool {
+	return s.cur >= len(s.src)
 }
 
 func (s *Scanner) advance() rune {
@@ -226,6 +217,11 @@ func (s *Scanner) advance() rune {
 	return s.src[s.cur-1]
 }
 
-func (s *Scanner) isAtEnd() bool {
-	return s.cur >= len(s.src)
+func (s *Scanner) addToken(kind token.TokenType) {
+	s.addTokenWithLit(kind, nil)
+}
+
+func (s *Scanner) addTokenWithLit(kind token.TokenType, lit any) {
+	txt := string(s.src[s.start:s.cur])
+	s.Tokens = append(s.Tokens, &token.Token{Kind: kind, Lexeme: txt, Literal: lit, Line: s.Line})
 }

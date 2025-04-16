@@ -12,11 +12,7 @@ type Env struct {
 	Enclosing *Env
 }
 
-func NewEnv() *Env {
-	return &Env{make(map[string]any), nil}
-}
-
-func NewEnvWithEnclosing(enclosing *Env) *Env {
+func NewEnv(enclosing *Env) *Env {
 	return &Env{make(map[string]any), enclosing}
 }
 

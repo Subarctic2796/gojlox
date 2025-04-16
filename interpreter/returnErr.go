@@ -1,5 +1,7 @@
 package interpreter
 
+import "errors"
+
 type ReturnErr struct {
 	Value any
 }
@@ -7,3 +9,5 @@ type ReturnErr struct {
 func (re *ReturnErr) Error() string {
 	return "Return Error"
 }
+
+var BreakErr = errors.New("Break Error")

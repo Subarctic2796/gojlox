@@ -27,10 +27,11 @@ func main() {
 
 	defineAst(PATH, "Stmt", []string{
 		"Block      : Statements []Stmt",
+		"Break      : ",
 		"Class      : Name *token.Token, Superclass *Variable, Methods []*Function",
 		"Expression : Expression Expr",
 		"Function   : Name *token.Token, Params []*token.Token, Body []Stmt",
-		"If         : Condition Expr, Thenbranch Stmt, Elsebranch Stmt",
+		"If         : Condition Expr, ThenBranch Stmt, ElseBranch Stmt",
 		"Print      : Expression Expr",
 		"Return     : Keyword *token.Token, Value Expr",
 		"Var        : Name *token.Token, Initializer Expr",
@@ -47,7 +48,11 @@ func defineAst(path, baseName string, types []string) {
 	for _, t := range types {
 		ls := strings.Split(t, ":")
 		name, fstr := strings.TrimSpace(ls[0]), strings.TrimSpace(ls[1])
-		classes[name] = strings.Split(fstr, ", ")
+		if len(fstr) == 0 {
+			classes[name] = []string{}
+		} else {
+			classes[name] = strings.Split(fstr, ", ")
+		}
 	}
 
 	bnLower := strings.ToLower(baseName)

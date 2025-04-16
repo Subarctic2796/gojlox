@@ -18,13 +18,13 @@ func NewLoxFn(fn *ast.Function, closure *Env, isInit bool) *LoxFn {
 }
 
 func (fn *LoxFn) Bind(inst *LoxInstnace) *LoxFn {
-	env := NewEnvWithEnclosing(fn.Closure)
+	env := NewEnv(fn.Closure)
 	env.Define("this", inst)
 	return &LoxFn{fn.Func, env, fn.IsInit}
 }
 
 func (fn *LoxFn) Call(intprt *Interpreter, args []any) (any, error) {
-	env := NewEnvWithEnclosing(fn.Closure)
+	env := NewEnv(fn.Closure)
 	for i, param := range fn.Func.Params {
 		env.Define(param.Lexeme, args[i])
 	}

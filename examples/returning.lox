@@ -1,0 +1,31 @@
+fun fn1() {
+    print "returning from fn1";
+    return 23;
+}
+
+fun fn2() {
+    print "returning from fn2";
+    return fn1();
+}
+
+fun fn3() {
+    print "returning from fn3";
+    return fn2();
+}
+
+fun fn4() {
+    print "returning from fn4";
+    return fn3();
+}
+
+fun fn5() {
+    print "returning from fn5";
+    return fn4();
+}
+
+fun fn6() {
+    print "returning from fn6";
+    return fn5();
+}
+
+print fn6();

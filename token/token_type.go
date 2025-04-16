@@ -53,6 +53,7 @@ const (
 	TRUE
 	VAR
 	WHILE
+	BREAK
 
 	EOF
 )
@@ -74,6 +75,14 @@ var KEYWORDS = map[string]TokenType{
 	"true":   TRUE,
 	"var":    VAR,
 	"while":  WHILE,
+	"break":  BREAK,
+}
+
+func LookUpKeyWord(word string) TokenType {
+	if keyword, ok := KEYWORDS[word]; ok {
+		return keyword
+	}
+	return IDENTIFIER
 }
 
 func (t TokenType) String() string {
@@ -154,6 +163,8 @@ func (t TokenType) String() string {
 		return "VAR"
 	case WHILE:
 		return "WHILE"
+	case BREAK:
+		return "BREAK"
 	case EOF:
 		return "EOF"
 	default:

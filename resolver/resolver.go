@@ -10,18 +10,18 @@ import (
 type fnType int
 
 const (
-	FN_NONE fnType = iota
-	FN_FUNC
-	FN_INIT
-	FN_METHOD
+	fn_NONE fnType = iota
+	fn_FUNC
+	fn_INIT
+	fn_METHOD
 )
 
 type clsType int
 
 const (
-	CLS_NONE clsType = iota
-	CLS_CLASS
-	CLS_SUBCLASS
+	cls_NONE clsType = iota
+	cls_CLASS
+	cls_SUBCLASS
 )
 
 type Resolver struct {
@@ -37,8 +37,8 @@ func NewResolver(er errs.ErrorReporter, intptr *interpreter.Interpreter) *Resolv
 		er,
 		intptr,
 		make([]map[string]bool, 0),
-		FN_NONE,
-		CLS_NONE,
+		fn_NONE,
+		cls_NONE,
 	}
 }
 
@@ -112,7 +112,7 @@ func (r *Resolver) VisitAssignExpr(expr *ast.Assign) (any, error) {
 }
 
 func (r *Resolver) VisitThisExpr(expr *ast.This) (any, error) {
-	if r.curCLS == CLS_NONE {
+	if r.curCLS == cls_NONE {
 		r.ER.ReportTok(expr.Keyword, &errs.ResolverErr{
 			Type: errs.ThisOutSideClass,
 		})
@@ -134,11 +134,11 @@ func (r *Resolver) VisitGetExpr(expr *ast.Get) (any, error) {
 }
 
 func (r *Resolver) VisitSuperExpr(expr *ast.Super) (any, error) {
-	if r.curCLS == CLS_NONE {
+	if r.curCLS == cls_NONE {
 		r.ER.ReportTok(expr.Keyword, &errs.ResolverErr{
 			Type: errs.SuperOutSideClass,
 		})
-	} else if r.curCLS != CLS_SUBCLASS {
+	} else if r.curCLS != cls_SUBCLASS {
 		r.ER.ReportTok(expr.Keyword, &errs.ResolverErr{
 			Type: errs.SuperWithNoSuperClass,
 		})
@@ -184,12 +184,10 @@ func (r *Resolver) VisitUnaryExpr(expr *ast.Unary) (any, error) {
 func (r *Resolver) VisitVariableExpr(expr *ast.Variable) (any, error) {
 	if len(r.scopes) != 0 {
 		state, ok := r.scopes[len(r.scopes)-1][expr.Name.Lexeme]
-		if ok {
-			if state == false {
-				r.ER.ReportTok(expr.Name, &errs.ResolverErr{
-					Type: errs.ReadLocalInOwnInitializer,
-				})
-			}
+		if ok && state == false {
+			r.ER.ReportTok(expr.Name, &errs.ResolverErr{
+				Type: errs.ReadLocalInOwnInitializer,
+			})
 		}
 	}
 	r.resolveLocal(expr, expr.Name)
@@ -211,7 +209,7 @@ func (r *Resolver) VisitExpressionStmt(stmt *ast.Expression) (any, error) {
 func (r *Resolver) VisitFunctionStmt(stmt *ast.Function) (any, error) {
 	r.declare(stmt.Name)
 	r.define(stmt.Name)
-	r.resolveFunc(stmt, FN_FUNC)
+	r.resolveFunc(stmt, fn_FUNC)
 	return nil, nil
 }
 
@@ -229,14 +227,18 @@ func (r *Resolver) VisitPrintStmt(stmt *ast.Print) (any, error) {
 	return nil, nil
 }
 
+func (r *Resolver) VisitBreakStmt(stmt *ast.Break) (any, error) {
+	return nil, nil
+}
+
 func (r *Resolver) VisitReturnStmt(stmt *ast.Return) (any, error) {
-	if r.curFN == FN_NONE {
+	if r.curFN == fn_NONE {
 		r.ER.ReportTok(stmt.Keyword, &errs.ResolverErr{
 			Type: errs.ReturnTopLevel,
 		})
 	}
 	if stmt.Value != nil {
-		if r.curFN == FN_INIT {
+		if r.curFN == fn_INIT {
 			r.ER.ReportTok(stmt.Keyword, &errs.ResolverErr{
 				Type: errs.ReturnFromInit,
 			})
@@ -263,7 +265,7 @@ func (r *Resolver) VisitWhileStmt(stmt *ast.While) (any, error) {
 
 func (r *Resolver) VisitClassStmt(stmt *ast.Class) (any, error) {
 	enclosingCLS := r.curCLS
-	r.curCLS = CLS_CLASS
+	r.curCLS = cls_CLASS
 	r.declare(stmt.Name)
 	r.define(stmt.Name)
 	if stmt.Superclass != nil {
@@ -272,7 +274,7 @@ func (r *Resolver) VisitClassStmt(stmt *ast.Class) (any, error) {
 				Type: errs.SelfInheritance,
 			})
 		}
-		r.curCLS = CLS_SUBCLASS
+		r.curCLS = cls_SUBCLASS
 		r.resolveExpr(stmt.Superclass)
 		r.beginScope()
 		r.scopes[len(r.scopes)-1]["super"] = true
@@ -280,9 +282,9 @@ func (r *Resolver) VisitClassStmt(stmt *ast.Class) (any, error) {
 	r.beginScope()
 	r.scopes[len(r.scopes)-1]["this"] = true
 	for _, method := range stmt.Methods {
-		decl := FN_METHOD
+		decl := fn_METHOD
 		if method.Name.Lexeme == "init" {
-			decl = FN_INIT
+			decl = fn_INIT
 		}
 		r.resolveFunc(method, decl)
 	}

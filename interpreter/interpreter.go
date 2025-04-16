@@ -1,6 +1,7 @@
 package interpreter
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/Subarctic2796/gojlox/ast"
@@ -16,7 +17,7 @@ type Interpreter struct {
 }
 
 func NewInterpreter(ER errs.ErrorReporter) *Interpreter {
-	globals := NewEnv()
+	globals := NewEnv(nil)
 	globals.Define("clock", ClockFn{})
 	return &Interpreter{
 		ER,
@@ -26,14 +27,15 @@ func NewInterpreter(ER errs.ErrorReporter) *Interpreter {
 	}
 }
 
-func (i *Interpreter) Interpret(stmts []ast.Stmt) {
+func (i *Interpreter) Interpret(stmts []ast.Stmt) error {
 	for _, s := range stmts {
 		_, err := i.execute(s)
 		if err != nil {
-			i.ER.ReportRTErr(err)
-			return
+			i.ER.ReportRunTimeErr(err)
+			return err
 		}
 	}
+	return nil
 }
 
 func (i *Interpreter) Resolve(expr ast.Expr, depth int) {
@@ -76,6 +78,10 @@ func (i *Interpreter) executeBlock(statements []ast.Stmt, env *Env) (any, error)
 	return nil, nil
 }
 
+func (i *Interpreter) VisitBreakStmt(stmt *ast.Break) (any, error) {
+	return nil, BreakErr
+}
+
 func (i *Interpreter) VisitReturnStmt(stmt *ast.Return) (any, error) {
 	var val any
 	var err error
@@ -105,7 +111,7 @@ func (i *Interpreter) VisitClassStmt(stmt *ast.Class) (any, error) {
 	}
 	i.env.Define(stmt.Name.Lexeme, nil)
 	if stmt.Superclass != nil {
-		i.env = NewEnvWithEnclosing(i.env)
+		i.env = NewEnv(i.env)
 		i.env.Define("super", supercls)
 	}
 	methods := make(map[string]*LoxFn)
@@ -216,8 +222,15 @@ func (i *Interpreter) VisitWhileStmt(stmt *ast.While) (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	for ; i.isTruthy(cond); cond, _ = i.evaluate(stmt.Condition) {
-		_, err := i.execute(stmt.Body)
+	for i.isTruthy(cond) {
+		_, err = i.execute(stmt.Body)
+		if err != nil {
+			if errors.Is(err, BreakErr) {
+				return nil, nil
+			}
+			return nil, err
+		}
+		cond, err = i.evaluate(stmt.Condition)
 		if err != nil {
 			return nil, err
 		}
@@ -262,7 +275,7 @@ func (i *Interpreter) VisitIfStmt(stmt *ast.If) (any, error) {
 }
 
 func (i *Interpreter) VisitBlockStmt(stmt *ast.Block) (any, error) {
-	return i.executeBlock(stmt.Statements, NewEnvWithEnclosing(i.env))
+	return i.executeBlock(stmt.Statements, NewEnv(i.env))
 }
 
 func (i *Interpreter) VisitAssignExpr(expr *ast.Assign) (any, error) {
@@ -310,35 +323,35 @@ func (i *Interpreter) VisitBinaryExpr(expr *ast.Binary) (any, error) {
 
 	switch expr.Operator.Kind {
 	case token.GREATER:
-		err := i.checkNumberOperands(expr.Operator, lhs, rhs)
+		l, r, err := i.checkNumberOperands(expr.Operator, lhs, rhs)
 		if err != nil {
 			return nil, err
 		}
-		return (lhs.(float64)) > (rhs.(float64)), nil
+		return l > r, nil
 	case token.GREATER_EQUAL:
-		err := i.checkNumberOperands(expr.Operator, lhs, rhs)
+		l, r, err := i.checkNumberOperands(expr.Operator, lhs, rhs)
 		if err != nil {
 			return nil, err
 		}
-		return (lhs.(float64)) >= (rhs.(float64)), nil
+		return l >= r, nil
 	case token.LESS:
-		err := i.checkNumberOperands(expr.Operator, lhs, rhs)
+		l, r, err := i.checkNumberOperands(expr.Operator, lhs, rhs)
 		if err != nil {
 			return nil, err
 		}
-		return (lhs.(float64)) < (rhs.(float64)), nil
+		return l < r, nil
 	case token.LESS_EQUAL:
-		err := i.checkNumberOperands(expr.Operator, lhs, rhs)
+		l, r, err := i.checkNumberOperands(expr.Operator, lhs, rhs)
 		if err != nil {
 			return nil, err
 		}
-		return lhs.(float64) <= rhs.(float64), nil
+		return l <= r, nil
 	case token.MINUS:
-		err := i.checkNumberOperands(expr.Operator, lhs, rhs)
+		l, r, err := i.checkNumberOperands(expr.Operator, lhs, rhs)
 		if err != nil {
 			return nil, err
 		}
-		return (lhs.(float64)) - (rhs.(float64)), nil
+		return l - r, nil
 	case token.BANG_EQUAL:
 		return !i.isEqual(lhs, rhs), nil
 	case token.EQUAL_EQUAL:
@@ -359,24 +372,23 @@ func (i *Interpreter) VisitBinaryExpr(expr *ast.Binary) (any, error) {
 			Msg: "Operands must be two numbers or two strings",
 		}
 	case token.SLASH:
-		err := i.checkNumberOperands(expr.Operator, lhs, rhs)
+		l, r, err := i.checkNumberOperands(expr.Operator, lhs, rhs)
 		if err != nil {
 			return nil, err
 		}
-		r, _ := rhs.(float64)
 		if r == 0.0 {
 			return nil, &errs.RunTimeErr{
 				Tok: expr.Operator,
 				Msg: "Division by 0",
 			}
 		}
-		return lhs.(float64) / r, nil
+		return l / r, nil
 	case token.STAR:
-		err := i.checkNumberOperands(expr.Operator, lhs, rhs)
+		l, r, err := i.checkNumberOperands(expr.Operator, lhs, rhs)
 		if err != nil {
 			return nil, err
 		}
-		return (lhs.(float64)) * (rhs.(float64)), nil
+		return l * r, nil
 	}
 	// unreachable
 	return nil, nil
@@ -397,11 +409,11 @@ func (i *Interpreter) VisitUnaryExpr(expr *ast.Unary) (any, error) {
 	}
 	switch expr.Operator.Kind {
 	case token.MINUS:
-		err := i.checkNumberOperand(expr.Operator, rhs)
+		r, err := i.checkNumberOperand(expr.Operator, rhs)
 		if err != nil {
 			return nil, err
 		}
-		return -rhs.(float64), nil
+		return -r, nil
 	case token.BANG:
 		return !i.isTruthy(rhs), nil
 	}
@@ -447,18 +459,24 @@ func (i *Interpreter) isEqual(a any, b any) bool {
 	return a == b
 }
 
-func (i *Interpreter) checkNumberOperand(oprtr *token.Token, opr any) error {
-	if _, ok := opr.(float64); ok {
-		return nil
+func (i *Interpreter) checkNumberOperand(oprtr *token.Token, opr any) (float64, error) {
+	if r, ok := opr.(float64); ok {
+		return r, nil
 	}
-	return &errs.RunTimeErr{Tok: oprtr, Msg: "Operand must be a number"}
+	return 0, &errs.RunTimeErr{
+		Tok: oprtr,
+		Msg: "Operand must be a number",
+	}
 }
 
-func (i *Interpreter) checkNumberOperands(oprtr *token.Token, lhs any, rhs any) error {
-	_, lok := lhs.(float64)
-	_, rok := rhs.(float64)
+func (i *Interpreter) checkNumberOperands(oprtr *token.Token, lhs any, rhs any) (float64, float64, error) {
+	l, lok := lhs.(float64)
+	r, rok := rhs.(float64)
 	if lok && rok {
-		return nil
+		return l, r, nil
 	}
-	return &errs.RunTimeErr{Tok: oprtr, Msg: "Operands must be a number"}
+	return 0, 0, &errs.RunTimeErr{
+		Tok: oprtr,
+		Msg: "Operands must be a number",
+	}
 }

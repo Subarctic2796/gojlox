@@ -9,6 +9,7 @@ type Stmt interface {
 
 type StmtVisitor interface {
 	VisitBlockStmt(stmt *Block) (any, error)
+	VisitBreakStmt(stmt *Break) (any, error)
 	VisitClassStmt(stmt *Class) (any, error)
 	VisitExpressionStmt(stmt *Expression) (any, error)
 	VisitFunctionStmt(stmt *Function) (any, error)
@@ -25,6 +26,12 @@ type Block struct {
 
 func (stmt *Block) Accept(visitor StmtVisitor) (any, error) {
 	return visitor.VisitBlockStmt(stmt)
+}
+
+type Break struct{}
+
+func (stmt *Break) Accept(visitor StmtVisitor) (any, error) {
+	return visitor.VisitBreakStmt(stmt)
 }
 
 type Class struct {
@@ -57,8 +64,8 @@ func (stmt *Function) Accept(visitor StmtVisitor) (any, error) {
 
 type If struct {
 	Condition  Expr
-	Thenbranch Stmt
-	Elsebranch Stmt
+	ThenBranch Stmt
+	ElseBranch Stmt
 }
 
 func (stmt *If) Accept(visitor StmtVisitor) (any, error) {
