@@ -21,16 +21,20 @@ func NewParser(tokens []*token.Token, ER errs.ErrorReporter) *Parser {
 	return &Parser{ER, tokens, 0}
 }
 
-func (p *Parser) Parse() ([]ast.Stmt, error) {
+func (p *Parser) Parse() ([]ast.Stmt, []error) {
 	stmts := make([]ast.Stmt, 0, 16)
+	errList := make([]error, 0)
 	for !p.isAtEnd() {
 		stmt, err := p.declaration()
 		if err != nil {
-			return nil, err
+			errList = append(errList, err)
 		}
 		stmts = append(stmts, stmt)
 	}
-	return stmts, nil
+	if len(errList) != 0 {
+		return nil, errList
+	}
+	return stmts, errList
 }
 
 func (p *Parser) declaration() (ast.Stmt, error) {
@@ -43,14 +47,14 @@ func (p *Parser) declaration() (ast.Stmt, error) {
 	if p.match(token.VAR) {
 		val, err := p.varDeclaration()
 		if errors.Is(err, errs.ErrParse) {
-			p.Synchronise()
+			p.synchronise()
 			return nil, err
 		}
 		return val, nil
 	}
 	val, err := p.statement()
 	if errors.Is(err, errs.ErrParse) {
-		p.Synchronise()
+		p.synchronise()
 		return nil, err
 	}
 	return val, err
@@ -642,7 +646,7 @@ func (p *Parser) isAtEnd() bool {
 	return p.peek().Kind == token.EOF
 }
 
-func (p *Parser) Synchronise() {
+func (p *Parser) synchronise() {
 	p.advance()
 	for !p.isAtEnd() {
 		if p.previous().Kind == token.SEMICOLON {

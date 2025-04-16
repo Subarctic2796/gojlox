@@ -24,16 +24,13 @@ func NewLox() *Lox {
 	return &Lox{false, false, nil}
 }
 
-var (
-	INTRPRTR = interpreter.NewInterpreter(nil)
-)
-
 func (l *Lox) RunFile(path string) error {
 	f, err := os.ReadFile(path)
 	if err != nil {
 		return err
 	}
-	l.Run(string(f))
+	intprt := interpreter.NewInterpreter(l)
+	l.Run(string(f), intprt)
 	if l.HadErr {
 		os.Exit(65)
 	}
@@ -45,36 +42,36 @@ func (l *Lox) RunFile(path string) error {
 
 func (l *Lox) RunPrompt() error {
 	scnr := bufio.NewScanner(os.Stdin)
+	intprt := interpreter.NewInterpreter(l)
 	for {
 		fmt.Print("> ")
 		if !scnr.Scan() {
 			fmt.Print("\n")
 			return scnr.Err()
 		}
-		l.Run(scnr.Text())
+		l.Run(scnr.Text(), intprt)
 		l.HadErr = false
 	}
 }
 
-func (l *Lox) Run(src string) {
+func (l *Lox) Run(src string, intprt *interpreter.Interpreter) {
 	scanner := scanner.NewScanner(src, l)
 	if l.HadErr {
 		return
 	}
 	parser := parser.NewParser(scanner.ScanTokens(), l)
-	stmts, err := parser.Parse()
+	stmts, errs := parser.Parse()
 	if l.HadErr {
-		fmt.Fprintf(os.Stderr, "%s\n", err)
+		fmt.Fprintf(os.Stderr, "%s\n", errs)
 		return
 	}
 
-	resolver := resolver.NewResolver(l, INTRPRTR)
+	resolver := resolver.NewResolver(l, intprt)
 	resolver.ResolveStmts(stmts)
 	if l.HadErr {
 		return
 	}
-	INTRPRTR.ER = l
-	INTRPRTR.Interpret(stmts)
+	intprt.Interpret(stmts)
 }
 
 func (l *Lox) ReportErr(line int, msg error) {

@@ -57,8 +57,8 @@ func (stmt *Function) Accept(visitor StmtVisitor) (any, error) {
 
 type If struct {
 	Condition  Expr
-	ThenBranch Stmt
-	ElseBranch Stmt
+	Thenbranch Stmt
+	Elsebranch Stmt
 }
 
 func (stmt *If) Accept(visitor StmtVisitor) (any, error) {

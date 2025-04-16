@@ -11,59 +11,43 @@ const PATH = "/home/benji/Coding/compilers/gojlox/ast"
 
 func main() {
 	defineAst(PATH, "Expr", []string{
-		"Assign   : Token name, Expr value",
-		"Binary   : Expr left, Token operator, Expr right",
-		"Call     : Expr callee, Token paren, List<Expr> arguments",
-		"Get      : Expr object, Token name",
-		"Grouping : Expr expression",
-		"Literal  : Object value",
-		"Logical  : Expr left, Token operator, Expr right",
-		"Set      : Expr object, Token name, Expr value",
-		"Super    : Token keyword, Token method",
-		"This     : Token keyword",
-		"Unary    : Token operator, Expr right",
-		"Variable : Token name",
+		"Assign   : Name *token.Token, Value Expr",
+		"Binary   : Left Expr, Operator *token.Token, Right Expr",
+		"Call     : Callee Expr, Paren *token.Token, Arguments []Expr",
+		"Get      : Object Expr, Name *token.Token",
+		"Grouping : Expression Expr",
+		"Literal  : Value any",
+		"Logical  : Left Expr, Operator *token.Token, Right Expr",
+		"Set      : Object Expr, Name *token.Token, Value Expr",
+		"Super    : Keyword *token.Token, Method *token.Token",
+		"This     : Keyword *token.Token",
+		"Unary    : Operator *token.Token, Right Expr",
+		"Variable : Name *token.Token",
 	})
 
 	defineAst(PATH, "Stmt", []string{
-		"Block      : List<Stmt> statements",
-		"Class      : Token name, Expr.Variable superclass, List<Stmt.Function> methods",
-		"Expression : Expr expression",
-		"Function   : Token name, List<Token> params, List<Stmt> body",
-		"If         : Expr condition, Stmt thenBranch, Stmt elseBranch",
-		"Print      : Expr expression",
-		"Return     : Token keyword, Expr value",
-		"Var        : Token name, Expr initializer",
-		"While      : Expr condition, Stmt body",
+		"Block      : Statements []Stmt",
+		"Class      : Name *token.Token, Superclass *Variable, Methods []*Function",
+		"Expression : Expression Expr",
+		"Function   : Name *token.Token, Params []*token.Token, Body []Stmt",
+		"If         : Condition Expr, Thenbranch Stmt, Elsebranch Stmt",
+		"Print      : Expression Expr",
+		"Return     : Keyword *token.Token, Value Expr",
+		"Var        : Name *token.Token, Initializer Expr",
+		"While      : Condition Expr, Body Stmt",
 	})
 }
 
-func defineAst(PATH, baseName string, types []string) {
+func defineAst(path, baseName string, types []string) {
 	tmpl, err := template.New("ast").Parse(TMPL)
 	if err != nil {
 		panic(err)
-	}
-	realTypes := map[string]string{
-		"Token":  "*token.Token",
-		"Object": "any",
-		"List<":  "[]",
-		">":      "",
-		"Stmt.":  "*",
-		"Expr.":  "*",
 	}
 	classes := make(map[string][]string)
 	for _, t := range types {
 		ls := strings.Split(t, ":")
 		name, fstr := strings.TrimSpace(ls[0]), strings.TrimSpace(ls[1])
-		for olds, news := range realTypes {
-			fstr = strings.ReplaceAll(fstr, olds, news)
-		}
-		fields := strings.Split(fstr, ", ")
-		for i, f := range fields {
-			tmp := strings.Split(f, " ")
-			fields[i] = fmt.Sprintf("%s %s", strings.Title(tmp[1]), tmp[0])
-		}
-		classes[name] = fields
+		classes[name] = strings.Split(fstr, ", ")
 	}
 
 	bnLower := strings.ToLower(baseName)
@@ -73,7 +57,11 @@ func defineAst(PATH, baseName string, types []string) {
 		"bn":      bnLower,
 		"Classes": classes,
 	})
-	f, err := os.Create(fmt.Sprintf("%s/%s.go", PATH, bnLower))
+	if err != nil {
+		panic(err)
+	}
+
+	f, err := os.Create(fmt.Sprintf("%s/%s.go", path, bnLower))
 	if err != nil {
 		panic(err)
 	}
