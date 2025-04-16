@@ -7,6 +7,19 @@ import (
 	"github.com/Subarctic2796/gojlox/token"
 )
 
+type varInfo struct {
+	name   *token.Token
+	status varStatus
+}
+
+type varStatus int
+
+const (
+	vs_DECLARED varStatus = iota
+	vs_DEFINED
+	vs_READ
+)
+
 type fnType int
 
 const (
@@ -27,7 +40,8 @@ const (
 type Resolver struct {
 	ER     errs.ErrorReporter
 	intprt *interpreter.Interpreter
-	scopes []map[string]bool
+	// scopes []map[string]bool
+	scopes []map[string]*varInfo
 	curFN  fnType
 	curCLS clsType
 }
@@ -36,7 +50,8 @@ func NewResolver(er errs.ErrorReporter, intptr *interpreter.Interpreter) *Resolv
 	return &Resolver{
 		er,
 		intptr,
-		make([]map[string]bool, 0),
+		// make([]map[string]bool, 0),
+		make([]map[string]*varInfo, 0),
 		fn_NONE,
 		cls_NONE,
 	}
@@ -56,10 +71,13 @@ func (r *Resolver) resolveExpr(expr ast.Expr) {
 	expr.Accept(r)
 }
 
-func (r *Resolver) resolveLocal(expr ast.Expr, name *token.Token) {
+func (r *Resolver) resolveLocal(expr ast.Expr, name *token.Token, isRead bool) {
 	for i := len(r.scopes) - 1; i >= 0; i-- {
 		if _, ok := r.scopes[i][name.Lexeme]; ok {
 			r.intprt.Resolve(expr, len(r.scopes)-1-i)
+			if isRead {
+				r.scopes[i][name.Lexeme].status = vs_READ
+			}
 			return
 		}
 	}
@@ -79,10 +97,17 @@ func (r *Resolver) resolveLambda(fn *ast.Lambda, kind fnType) {
 }
 
 func (r *Resolver) beginScope() {
-	r.scopes = append(r.scopes, make(map[string]bool))
+	r.scopes = append(r.scopes, make(map[string]*varInfo))
 }
 
 func (r *Resolver) endScope() {
+	for _, vi := range r.scopes[len(r.scopes)-1] {
+		if vi.status == vs_DEFINED {
+			r.ER.ReportTok(vi.name, &errs.ResolverErr{
+				Type: errs.LocalNotRead,
+			})
+		}
+	}
 	r.scopes = r.scopes[:len(r.scopes)-1]
 }
 
@@ -95,19 +120,19 @@ func (r *Resolver) declare(name *token.Token) {
 			Type: errs.AlreadyInScope,
 		})
 	}
-	r.scopes[len(r.scopes)-1][name.Lexeme] = false
+	r.scopes[len(r.scopes)-1][name.Lexeme] = &varInfo{name, vs_DECLARED}
 }
 
 func (r *Resolver) define(name *token.Token) {
 	if len(r.scopes) == 0 {
 		return
 	}
-	r.scopes[len(r.scopes)-1][name.Lexeme] = true
+	r.scopes[len(r.scopes)-1][name.Lexeme].status = vs_DEFINED
 }
 
 func (r *Resolver) VisitAssignExpr(expr *ast.Assign) (any, error) {
 	r.resolveExpr(expr.Value)
-	r.resolveLocal(expr, expr.Name)
+	r.resolveLocal(expr, expr.Name, false)
 	return nil, nil
 }
 
@@ -123,7 +148,7 @@ func (r *Resolver) VisitThisExpr(expr *ast.This) (any, error) {
 		})
 		return nil, nil
 	}
-	r.resolveLocal(expr, expr.Keyword)
+	r.resolveLocal(expr, expr.Keyword, true)
 	return nil, nil
 }
 
@@ -148,7 +173,7 @@ func (r *Resolver) VisitSuperExpr(expr *ast.Super) (any, error) {
 			Type: errs.SuperWithNoSuperClass,
 		})
 	}
-	r.resolveLocal(expr, expr.Keyword)
+	r.resolveLocal(expr, expr.Keyword, true)
 	return nil, nil
 }
 
@@ -189,13 +214,13 @@ func (r *Resolver) VisitUnaryExpr(expr *ast.Unary) (any, error) {
 func (r *Resolver) VisitVariableExpr(expr *ast.Variable) (any, error) {
 	if len(r.scopes) != 0 {
 		state, ok := r.scopes[len(r.scopes)-1][expr.Name.Lexeme]
-		if ok && state == false {
+		if ok && state.status == vs_DECLARED {
 			r.ER.ReportTok(expr.Name, &errs.ResolverErr{
 				Type: errs.ReadLocalInOwnInitializer,
 			})
 		}
 	}
-	r.resolveLocal(expr, expr.Name)
+	r.resolveLocal(expr, expr.Name, true)
 	return nil, nil
 }
 
@@ -282,10 +307,10 @@ func (r *Resolver) VisitClassStmt(stmt *ast.Class) (any, error) {
 		r.curCLS = cls_SUBCLASS
 		r.resolveExpr(stmt.Superclass)
 		r.beginScope()
-		r.scopes[len(r.scopes)-1]["super"] = true
+		r.scopes[len(r.scopes)-1]["super"].status = vs_READ
 	}
 	r.beginScope()
-	r.scopes[len(r.scopes)-1]["this"] = true
+	r.scopes[len(r.scopes)-1]["this"].status = vs_READ
 	for _, method := range stmt.Methods {
 		decl := fn_METHOD
 		if method.Name.Lexeme == "init" {

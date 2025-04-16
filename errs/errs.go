@@ -41,6 +41,7 @@ const (
 	SuperOutSideClass         ResolverErrMsg = "Can't use 'super' outside of a class"
 	SuperWithNoSuperClass     ResolverErrMsg = "Can't use 'super' in a class with no superclass"
 	SelfInheritance           ResolverErrMsg = "A class can't inherit from itself"
+	LocalNotRead              ResolverErrMsg = "Local variable is not used"
 )
 
 type ResolverErr struct {
