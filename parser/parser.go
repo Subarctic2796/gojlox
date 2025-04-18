@@ -79,18 +79,24 @@ func (p *Parser) classDeclaration() (ast.Stmt, error) {
 		return nil, err
 	}
 	methods := make([]*ast.Function, 0)
+	statics := make([]*ast.Function, 0)
 	for !p.check(token.RIGHT_BRACE) && !p.isAtEnd() {
+		isStatic := p.match(token.STATIC)
 		method, err := p.function("method")
 		if err != nil {
 			return nil, err
 		}
-		methods = append(methods, method)
+		if isStatic {
+			statics = append(statics, method)
+		} else {
+			methods = append(methods, method)
+		}
 	}
 	_, err = p.consume(token.RIGHT_BRACE, "Expect '}' after class body")
 	if err != nil {
 		return nil, err
 	}
-	return &ast.Class{Name: name, Superclass: supercls, Methods: methods}, nil
+	return &ast.Class{Name: name, Superclass: supercls, Methods: methods, Statics: statics}, nil
 }
 
 func (p *Parser) function(kind string) (*ast.Function, error) {

@@ -18,7 +18,9 @@ type Interpreter struct {
 
 func NewInterpreter(ER errs.ErrorReporter) *Interpreter {
 	globals := NewEnv(nil)
-	globals.Define("clock", ClockFn{})
+	for _, fn := range NativeFns {
+		globals.Define(fn.Name(), fn)
+	}
 	return &Interpreter{
 		ER,
 		globals,
@@ -119,8 +121,12 @@ func (i *Interpreter) VisitClassStmt(stmt *ast.Class) (any, error) {
 		isinit := method.Name.Lexeme == "init"
 		methods[method.Name.Lexeme] = NewLoxFn(method.Name.Lexeme, method.Func, i.env, isinit)
 	}
+	statics := make(map[string]*LoxFn)
+	for _, method := range stmt.Statics {
+		statics[method.Name.Lexeme] = NewLoxFn(method.Name.Lexeme, method.Func, i.env, false)
+	}
 	scls, _ := supercls.(*LoxClass)
-	klass := NewLoxClass(stmt.Name.Lexeme, scls, methods)
+	klass := NewLoxClass(stmt.Name.Lexeme, scls, methods, statics)
 	if supercls != nil {
 		i.env = i.env.Enclosing
 	}
@@ -177,6 +183,9 @@ func (i *Interpreter) VisitCallExpr(expr *ast.Call) (any, error) {
 			Msg: "Can only call functions and classes",
 		}
 	}
+	if fn.Arity() == -1 {
+		return fn.Call(i, args)
+	}
 	if len(args) != fn.Arity() {
 		msg := fmt.Sprintf("Expected %d arguments but got %d", fn.Arity(), len(args))
 		return nil, &errs.RunTimeErr{Tok: expr.Paren, Msg: msg}
@@ -188,6 +197,18 @@ func (i *Interpreter) VisitGetExpr(expr *ast.Get) (any, error) {
 	obj, err := i.evaluate(expr.Object)
 	if err != nil {
 		return nil, err
+	}
+	if klass, ok := obj.(*LoxClass); ok {
+		if len(klass.Statics) != 0 {
+			static := klass.FindMethod(expr.Name.Lexeme)
+			if static != nil {
+				return static, nil
+			}
+			return nil, &errs.RunTimeErr{
+				Tok: expr.Name,
+				Msg: fmt.Sprintf("Undefined static function '%s'", expr.Name.Lexeme),
+			}
+		}
 	}
 	if inst, ok := obj.(*LoxInstnace); ok {
 		return inst.Get(expr.Name)

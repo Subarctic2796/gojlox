@@ -1,12 +1,12 @@
 # Gojlox
-Crafting Interpreters tree walking interpreter but in go
+[Crafting Interpreters](https://craftinginterpreters.com) tree walking interpreter but in go.
 
 # Running
 ```console
 git clone --depth=1 https://github.com/Subarctic2796/gojlox.git
 cd gojlox
 go build .
-./main
+./gojlox
 ```
 
 # Notes
@@ -18,7 +18,3 @@ Once you change it the `path` and run it, make sure to reformat the generated fi
 cd tools
 go run .
 ```
-
-# Currently on
-Chap 11
-challenge: 3

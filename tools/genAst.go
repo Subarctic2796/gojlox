@@ -29,7 +29,7 @@ func main() {
 	defineAst(PATH, "Stmt", []string{
 		"Block      : Statements []Stmt",
 		"Break      : ",
-		"Class      : Name *token.Token, Superclass *Variable, Methods []*Function",
+		"Class      : Name *token.Token, Superclass *Variable, Methods []*Function, Statics []*Function",
 		"Expression : Expression Expr",
 		"Function   : Name *token.Token, Func *Lambda",
 		"If         : Condition Expr, ThenBranch Stmt, ElseBranch Stmt",

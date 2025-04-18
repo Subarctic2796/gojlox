@@ -6,13 +6,17 @@ type LoxClass struct {
 	Name       string
 	SuperClass *LoxClass
 	Methods    map[string]*LoxFn
+	Statics    map[string]*LoxFn
 }
 
-func NewLoxClass(name string, superclass *LoxClass, methods map[string]*LoxFn) *LoxClass {
-	return &LoxClass{name, superclass, methods}
+func NewLoxClass(name string, superclass *LoxClass, methods map[string]*LoxFn, statics map[string]*LoxFn) *LoxClass {
+	return &LoxClass{name, superclass, methods, statics}
 }
 
 func (lc *LoxClass) FindMethod(name string) *LoxFn {
+	if val, ok := lc.Statics[name]; ok {
+		return val
+	}
 	if val, ok := lc.Methods[name]; ok {
 		return val
 	}

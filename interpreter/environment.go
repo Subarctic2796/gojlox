@@ -37,7 +37,8 @@ func (e *Env) GetAt(dist int, name string) any {
 
 func (e *Env) Ancestor(dist int) *Env {
 	env := e
-	for i := 0; i < dist; i++ {
+	// for i := 0; i < dist; i++ {
+	for range dist {
 		env = env.Enclosing
 	}
 	return env

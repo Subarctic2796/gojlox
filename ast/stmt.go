@@ -28,7 +28,8 @@ func (stmt *Block) Accept(visitor StmtVisitor) (any, error) {
 	return visitor.VisitBlockStmt(stmt)
 }
 
-type Break struct{}
+type Break struct {
+}
 
 func (stmt *Break) Accept(visitor StmtVisitor) (any, error) {
 	return visitor.VisitBreakStmt(stmt)
@@ -38,6 +39,7 @@ type Class struct {
 	Name       *token.Token
 	Superclass *Variable
 	Methods    []*Function
+	Statics    []*Function
 }
 
 func (stmt *Class) Accept(visitor StmtVisitor) (any, error) {

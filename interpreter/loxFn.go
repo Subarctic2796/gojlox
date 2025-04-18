@@ -51,5 +51,8 @@ func (fn *LoxFn) Arity() int {
 }
 
 func (fn *LoxFn) String() string {
+	if len(fn.Name) == 0 {
+		return "<lambda>"
+	}
 	return fmt.Sprintf("<fn %s>", fn.Name)
 }

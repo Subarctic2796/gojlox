@@ -18,6 +18,7 @@ const (
 	vs_DECLARED varStatus = iota
 	vs_DEFINED
 	vs_READ
+	vs_IMPLICIT
 )
 
 type fnType int
@@ -27,6 +28,7 @@ const (
 	fn_FUNC
 	fn_INIT
 	fn_METHOD
+	fn_STATIC
 )
 
 type clsType int
@@ -40,7 +42,6 @@ const (
 type Resolver struct {
 	ER     errs.ErrorReporter
 	intprt *interpreter.Interpreter
-	// scopes []map[string]bool
 	scopes []map[string]*varInfo
 	curFN  fnType
 	curCLS clsType
@@ -50,7 +51,6 @@ func NewResolver(er errs.ErrorReporter, intptr *interpreter.Interpreter) *Resolv
 	return &Resolver{
 		er,
 		intptr,
-		// make([]map[string]bool, 0),
 		make([]map[string]*varInfo, 0),
 		fn_NONE,
 		cls_NONE,
@@ -87,13 +87,12 @@ func (r *Resolver) resolveLambda(fn *ast.Lambda, kind fnType) {
 	enclosingFun := r.curFN
 	r.curFN = kind
 	r.beginScope()
+	defer func() { r.endScope(); r.curFN = enclosingFun }()
 	for _, param := range fn.Params {
 		r.declare(param)
 		r.define(param)
 	}
 	r.ResolveStmts(fn.Body)
-	r.endScope()
-	r.curFN = enclosingFun
 }
 
 func (r *Resolver) beginScope() {
@@ -173,6 +172,11 @@ func (r *Resolver) VisitSuperExpr(expr *ast.Super) (any, error) {
 			Type: errs.SuperWithNoSuperClass,
 		})
 	}
+	if r.curFN == fn_STATIC {
+		r.ER.ReportTok(expr.Keyword, &errs.ResolverErr{
+			Type: errs.SuperInStatic,
+		})
+	}
 	r.resolveLocal(expr, expr.Keyword, true)
 	return nil, nil
 }
@@ -226,8 +230,8 @@ func (r *Resolver) VisitVariableExpr(expr *ast.Variable) (any, error) {
 
 func (r *Resolver) VisitBlockStmt(stmt *ast.Block) (any, error) {
 	r.beginScope()
+	defer r.endScope()
 	r.ResolveStmts(stmt.Statements)
-	r.endScope()
 	return nil, nil
 }
 
@@ -307,10 +311,17 @@ func (r *Resolver) VisitClassStmt(stmt *ast.Class) (any, error) {
 		r.curCLS = cls_SUBCLASS
 		r.resolveExpr(stmt.Superclass)
 		r.beginScope()
-		r.scopes[len(r.scopes)-1]["super"].status = vs_READ
+		r.scopes[len(r.scopes)-1]["super"] = &varInfo{stmt.Superclass.Name, vs_IMPLICIT}
 	}
 	r.beginScope()
-	r.scopes[len(r.scopes)-1]["this"].status = vs_READ
+	defer func() {
+		r.endScope()
+		r.curCLS = enclosingCLS
+		if stmt.Superclass != nil {
+			r.endScope()
+		}
+	}()
+	r.scopes[len(r.scopes)-1]["this"] = &varInfo{stmt.Name, vs_IMPLICIT}
 	for _, method := range stmt.Methods {
 		decl := fn_METHOD
 		if method.Name.Lexeme == "init" {
@@ -318,10 +329,16 @@ func (r *Resolver) VisitClassStmt(stmt *ast.Class) (any, error) {
 		}
 		r.resolveLambda(method.Func, decl)
 	}
-	r.endScope()
-	if stmt.Superclass != nil {
-		r.endScope()
+	for _, method := range stmt.Statics {
+		if method.Name.Lexeme == "init" {
+			r.ER.ReportTok(method.Name, &errs.ResolverErr{
+				Type: errs.InitIsStatic,
+			})
+		}
+		r.resolveLambda(method.Func, fn_STATIC)
 	}
-	r.curCLS = enclosingCLS
+	// if stmt.Superclass != nil {
+	// 	r.endScope()
+	// }
 	return nil, nil
 }

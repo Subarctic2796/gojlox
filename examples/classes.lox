@@ -96,3 +96,15 @@ class C < B {}
 C().test();
 
 print "";
+print "statics";
+print "";
+
+class Math {
+    static square(n) {
+        return n * n;
+    }
+}
+
+print Math.square(23);
+
+print "";

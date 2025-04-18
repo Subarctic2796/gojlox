@@ -45,6 +45,7 @@ const (
 	IF
 	NIL
 	OR
+	STATIC
 
 	PRINT
 	RETURN
@@ -76,6 +77,7 @@ var KEYWORDS = map[string]TokenType{
 	"var":    VAR,
 	"while":  WHILE,
 	"break":  BREAK,
+	"static": STATIC,
 }
 
 func LookUpKeyWord(word string) TokenType {
@@ -165,6 +167,8 @@ func (t TokenType) String() string {
 		return "WHILE"
 	case BREAK:
 		return "BREAK"
+	case STATIC:
+		return "STATIC"
 	case EOF:
 		return "EOF"
 	default:
