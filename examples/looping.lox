@@ -8,3 +8,13 @@ print "for loop now";
 for (var i = 0; i < 10; i = i + 1) {
     print i;
 }
+
+print "new assignment operators";
+print "+= 1";
+for (var i = 0; i < 10; i += 1) {
+    print i;
+}
+print "+= 2";
+for (var i = 0; i < 10; i += 2) {
+    print i;
+}

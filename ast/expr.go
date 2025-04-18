@@ -24,8 +24,9 @@ type ExprVisitor interface {
 }
 
 type Assign struct {
-	Name  *token.Token
-	Value Expr
+	Name     *token.Token
+	Operator *token.Token
+	Value    Expr
 }
 
 func (expr *Assign) Accept(visitor ExprVisitor) (any, error) {
@@ -99,6 +100,7 @@ func (expr *Logical) Accept(visitor ExprVisitor) (any, error) {
 type Set struct {
 	Object Expr
 	Name   *token.Token
+	Kind   *token.Token
 	Value  Expr
 }
 

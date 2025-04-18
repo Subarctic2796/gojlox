@@ -18,7 +18,7 @@ func NewLoxFn(name string, fn *ast.Lambda, closure *Env, isInit bool) *LoxFn {
 	return &LoxFn{name, fn, closure, isInit}
 }
 
-func (fn *LoxFn) Bind(inst *LoxInstnace) *LoxFn {
+func (fn *LoxFn) Bind(inst *LoxInstance) *LoxFn {
 	env := NewEnv(fn.Closure)
 	env.Define("this", inst)
 	return &LoxFn{fn.Name, fn.Func, env, fn.IsInit}

@@ -2,6 +2,7 @@ package interpreter
 
 import (
 	"fmt"
+	"strconv"
 	"time"
 )
 
@@ -14,6 +15,7 @@ var NativeFns = []LoxNative{
 	&ClockFn{},
 	&StringFn{},
 	&PrintFn{},
+	&ParseNumFn{},
 }
 
 type ClockFn struct{}
@@ -50,6 +52,31 @@ func (StringFn) String() string {
 
 func (StringFn) Name() string {
 	return "string"
+}
+
+type ParseNumFn struct{}
+
+func (ParseNumFn) Call(intprt *Interpreter, args []any) (any, error) {
+	if str, ok := args[0].(string); ok {
+		num, err := strconv.ParseFloat(str, 64)
+		if err != nil {
+			return nil, err
+		}
+		return num, nil
+	}
+	return nil, fmt.Errorf("argument must be a string")
+}
+
+func (ParseNumFn) Arity() int {
+	return 1
+}
+
+func (ParseNumFn) String() string {
+	return "<native fn parseNum>"
+}
+
+func (ParseNumFn) Name() string {
+	return "parseNum"
 }
 
 type PrintFn struct{}

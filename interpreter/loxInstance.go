@@ -7,20 +7,20 @@ import (
 	"github.com/Subarctic2796/gojlox/token"
 )
 
-type LoxInstnace struct {
+type LoxInstance struct {
 	Klass  *LoxClass
 	Fields map[string]any
 }
 
-func NewLoxInstance(klass *LoxClass) *LoxInstnace {
-	return &LoxInstnace{klass, make(map[string]any)}
+func NewLoxInstance(klass *LoxClass) *LoxInstance {
+	return &LoxInstance{klass, make(map[string]any)}
 }
 
-func (li *LoxInstnace) String() string {
+func (li *LoxInstance) String() string {
 	return fmt.Sprintf("%s instance", li.Klass.Name)
 }
 
-func (li *LoxInstnace) Get(name *token.Token) (any, error) {
+func (li *LoxInstance) Get(name *token.Token) (any, error) {
 	if val, ok := li.Fields[name.Lexeme]; ok {
 		return val, nil
 	}
@@ -34,6 +34,6 @@ func (li *LoxInstnace) Get(name *token.Token) (any, error) {
 	}
 }
 
-func (li *LoxInstnace) Set(name *token.Token, val any) {
+func (li *LoxInstance) Set(name *token.Token, val any) {
 	li.Fields[name.Lexeme] = val
 }

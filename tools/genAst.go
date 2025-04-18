@@ -11,7 +11,7 @@ const PATH = "/home/benji/Coding/compilers/gojlox/ast"
 
 func main() {
 	defineAst(PATH, "Expr", []string{
-		"Assign   : Name *token.Token, Value Expr",
+		"Assign   : Name *token.Token, Operator *token.Token, Value Expr",
 		"Binary   : Left Expr, Operator *token.Token, Right Expr",
 		"Call     : Callee Expr, Paren *token.Token, Arguments []Expr",
 		"Get      : Object Expr, Name *token.Token",
@@ -19,7 +19,7 @@ func main() {
 		"Grouping : Expression Expr",
 		"Literal  : Value any",
 		"Logical  : Left Expr, Operator *token.Token, Right Expr",
-		"Set      : Object Expr, Name *token.Token, Value Expr",
+		"Set      : Object Expr, Name *token.Token, Kind *token.Token, Value Expr",
 		"Super    : Keyword *token.Token, Method *token.Token",
 		"This     : Keyword *token.Token",
 		"Unary    : Operator *token.Token, Right Expr",

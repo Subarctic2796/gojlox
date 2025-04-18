@@ -409,15 +409,15 @@ func (p *Parser) assignment() (ast.Expr, error) {
 	if err != nil {
 		return nil, err
 	}
-	if p.match(token.EQUAL) {
-		equals := p.previous()
+	if p.match(token.EQUAL, token.PLUS_EQUAL, token.MINUS_EQUAL, token.SLASH_EQUAL, token.STAR_EQUAL) {
+		opr := p.previous()
 		val, err := p.assignment()
 		if err != nil {
 			return nil, err
 		}
 		if vexpr, ok := expr.(*ast.Variable); ok {
 			name := vexpr.Name
-			return &ast.Assign{Name: name, Value: val}, nil
+			return &ast.Assign{Name: name, Operator: opr, Value: val}, nil
 		} else if get, ok := expr.(*ast.Get); ok {
 			return &ast.Set{
 				Object: get.Object,
@@ -425,7 +425,7 @@ func (p *Parser) assignment() (ast.Expr, error) {
 				Value:  val,
 			}, nil
 		}
-		p.parseErr(equals, "Invalid assignment target")
+		p.parseErr(opr, "Invalid assignment target")
 	}
 	return expr, nil
 }

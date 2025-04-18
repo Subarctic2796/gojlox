@@ -47,14 +47,14 @@ func (s *Scanner) scanToken() {
 		s.addToken(token.COMMA)
 	case '.':
 		s.addToken(token.DOT)
-	case '-':
-		s.addToken(token.MINUS)
-	case '+':
-		s.addToken(token.PLUS)
 	case ';':
 		s.addToken(token.SEMICOLON)
 	case '*':
-		s.addToken(token.STAR)
+		s.addMatchToken('=', token.STAR_EQUAL, token.STAR)
+	case '+':
+		s.addMatchToken('=', token.PLUS_EQUAL, token.PLUS)
+	case '-':
+		s.addMatchToken('=', token.MINUS_EQUAL, token.MINUS)
 	case '!':
 		s.addMatchToken('=', token.BANG_EQUAL, token.BANG)
 	case '=':
@@ -71,7 +71,7 @@ func (s *Scanner) scanToken() {
 		} else if s.match('*') {
 			s.multiLineComment()
 		} else {
-			s.addToken(token.SLASH)
+			s.addMatchToken('=', token.SLASH_EQUAL, token.SLASH)
 		}
 	case ' ', '\r', '\t':
 	case '\n':

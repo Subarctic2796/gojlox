@@ -151,7 +151,7 @@ func (i *Interpreter) VisitLambdaExpr(expr *ast.Lambda) (any, error) {
 func (i *Interpreter) VisitSuperExpr(expr *ast.Super) (any, error) {
 	dist := i.locals[expr]
 	superclass := i.env.GetAt(dist, "super").(*LoxClass)
-	obj := i.env.GetAt(dist-1, "this").(*LoxInstnace)
+	obj := i.env.GetAt(dist-1, "this").(*LoxInstance)
 	method := superclass.FindMethod(expr.Method.Lexeme)
 	if method == nil {
 		return nil, &errs.RunTimeErr{
@@ -167,7 +167,7 @@ func (i *Interpreter) VisitCallExpr(expr *ast.Call) (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	args := make([]any, 0)
+	args := make([]any, 0, len(expr.Arguments))
 	for _, arg := range expr.Arguments {
 		a, err := i.evaluate(arg)
 		if err != nil {
@@ -210,7 +210,7 @@ func (i *Interpreter) VisitGetExpr(expr *ast.Get) (any, error) {
 			}
 		}
 	}
-	if inst, ok := obj.(*LoxInstnace); ok {
+	if inst, ok := obj.(*LoxInstance); ok {
 		return inst.Get(expr.Name)
 	}
 	return nil, &errs.RunTimeErr{
@@ -228,7 +228,7 @@ func (i *Interpreter) VisitSetExpr(expr *ast.Set) (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	inst, ok := obj.(*LoxInstnace)
+	inst, ok := obj.(*LoxInstance)
 	if !ok {
 		return nil, &errs.RunTimeErr{
 			Tok: expr.Name,
@@ -308,6 +308,29 @@ func (i *Interpreter) VisitAssignExpr(expr *ast.Assign) (any, error) {
 	val, err := i.evaluate(expr.Value)
 	if err != nil {
 		return nil, err
+	}
+	oprType := token.NONE
+	switch expr.Operator.Kind {
+	case token.PLUS_EQUAL:
+		oprType = token.PLUS
+	case token.MINUS_EQUAL:
+		oprType = token.MINUS
+	case token.SLASH_EQUAL:
+		oprType = token.SLASH
+	case token.STAR_EQUAL:
+		oprType = token.STAR
+	}
+	if oprType != token.NONE {
+		tmp, err := i.lookUpVariable(expr.Name, expr)
+		if err != nil {
+			return nil, err
+		}
+		lval, rval := &ast.Literal{Value: tmp}, &ast.Literal{Value: val}
+		opr := &token.Token{Kind: oprType, Lexeme: "", Literal: nil, Line: expr.Operator.Line}
+		val, err = i.VisitBinaryExpr(&ast.Binary{Left: lval, Operator: opr, Right: rval})
+		if err != nil {
+			return nil, err
+		}
 	}
 	if dist, ok := i.locals[expr]; ok {
 		i.env.AssignAt(dist, expr.Name, val)

@@ -28,8 +28,7 @@ func (stmt *Block) Accept(visitor StmtVisitor) (any, error) {
 	return visitor.VisitBlockStmt(stmt)
 }
 
-type Break struct {
-}
+type Break struct{}
 
 func (stmt *Break) Accept(visitor StmtVisitor) (any, error) {
 	return visitor.VisitBreakStmt(stmt)

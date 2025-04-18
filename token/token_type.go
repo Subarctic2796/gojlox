@@ -3,19 +3,17 @@ package token
 type TokenType int
 
 const (
+	NONE TokenType = iota
+
 	// Single-character tokens.
-	LEFT_PAREN TokenType = iota
+	LEFT_PAREN
 	RIGHT_PAREN
 	LEFT_BRACE
 	RIGHT_BRACE
 
 	COMMA
 	DOT
-	MINUS
-	PLUS
 	SEMICOLON
-	SLASH
-	STAR
 
 	// One or two character tokens.
 	BANG
@@ -29,6 +27,18 @@ const (
 
 	LESS
 	LESS_EQUAL
+
+	PLUS
+	PLUS_EQUAL
+
+	MINUS
+	MINUS_EQUAL
+
+	SLASH
+	SLASH_EQUAL
+
+	STAR
+	STAR_EQUAL
 
 	// Literals.
 	IDENTIFIER
@@ -103,14 +113,22 @@ func (t TokenType) String() string {
 		return "DOT"
 	case MINUS:
 		return "MINUS"
+	case MINUS_EQUAL:
+		return "MINUS_EQUAL"
 	case PLUS:
 		return "PLUS"
+	case PLUS_EQUAL:
+		return "PLUS_EQUAL"
 	case SEMICOLON:
 		return "SEMICOLON"
 	case SLASH:
 		return "SLASH"
+	case SLASH_EQUAL:
+		return "SLASH_EQUAL"
 	case STAR:
 		return "STAR"
+	case STAR_EQUAL:
+		return "STAR_EQUAL"
 	case BANG:
 		return "BANG"
 	case BANG_EQUAL:
