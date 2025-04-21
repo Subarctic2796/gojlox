@@ -48,10 +48,7 @@ func (l *Lox) RunPrompt() error {
 		fmt.Print("> ")
 		if !scnr.Scan() {
 			fmt.Print("\n")
-			if err := scnr.Err(); err != nil {
-				fmt.Fprintln(os.Stderr, err)
-				return err
-			}
+			return scnr.Err()
 		}
 		l.Run(scnr.Text(), intprt)
 		l.HadErr, l.HadRunTimeErr, l.CurErr = false, false, nil

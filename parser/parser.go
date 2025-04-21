@@ -9,15 +9,49 @@ import (
 	"github.com/Subarctic2796/gojlox/token"
 )
 
+const (
+	ThisOutSideClass  = "Can't use 'this' outside of a class"
+	SuperOutSideClass = "Can't use 'super' outside of a class"
+	ReturnTopLevel    = "Can't return from top-level code"
+	SelfInheritance   = "A class can't inherit from itself"
+)
+
+type fnType int
+
+const (
+	fn_NONE fnType = iota
+	fn_FUNC
+	fn_INIT
+	fn_METHOD
+	fn_STATIC
+)
+
+type clsType int
+
+const (
+	cls_NONE clsType = iota
+	cls_CLASS
+	cls_SUBCLASS
+)
+
 // TODO: even if we error we should still return the AST
 type Parser struct {
 	tokens         []*token.Token
 	cur, loopDepth int
+	curClass       clsType
+	curFN          fnType
 	curErr         error
 }
 
 func NewParser(tokens []*token.Token) *Parser {
-	return &Parser{tokens, 0, 0, nil}
+	return &Parser{
+		tokens,
+		0,
+		0,
+		cls_NONE,
+		fn_NONE,
+		nil,
+	}
 }
 
 func (p *Parser) Parse() ([]ast.Stmt, error) {
@@ -60,6 +94,8 @@ func (p *Parser) declaration() (ast.Stmt, error) {
 }
 
 func (p *Parser) classDeclaration() (ast.Stmt, error) {
+	p.curClass = cls_CLASS
+	defer func() { p.curClass = cls_NONE }()
 	name, err := p.consume(token.IDENTIFIER, "Expect class name")
 	if err != nil {
 		return nil, err
@@ -71,6 +107,9 @@ func (p *Parser) classDeclaration() (ast.Stmt, error) {
 			return nil, err
 		}
 		supercls = &ast.Variable{Name: p.previous()}
+		if supercls.Name.Lexeme == name.Lexeme {
+			return nil, p.parseErr(supercls.Name, SelfInheritance)
+		}
 	}
 	_, err = p.consume(token.LEFT_BRACE, "Expect '{' before class body")
 	if err != nil {
@@ -109,6 +148,8 @@ func (p *Parser) function(kind string) (*ast.Function, error) {
 }
 
 func (p *Parser) lambda(kind string) (*ast.Lambda, error) {
+	p.curFN = fn_FUNC
+	defer func() { p.curFN = fn_NONE }()
 	msg := fmt.Sprintf("Expect '(' after %s name", kind)
 	_, err := p.consume(token.LEFT_PAREN, msg)
 	if err != nil {
@@ -117,7 +158,7 @@ func (p *Parser) lambda(kind string) (*ast.Lambda, error) {
 
 	params := make([]*token.Token, 0)
 	if !p.check(token.RIGHT_PAREN) {
-		for {
+		for ok := true; ok; ok = p.match(token.COMMA) {
 			if len(params) >= 255 {
 				p.parseErr(p.peek(), "Can't have more than 255 parameters")
 			}
@@ -126,9 +167,6 @@ func (p *Parser) lambda(kind string) (*ast.Lambda, error) {
 				return nil, err
 			}
 			params = append(params, ident)
-			if !p.match(token.COMMA) {
-				break
-			}
 		}
 	}
 
@@ -221,6 +259,9 @@ func (p *Parser) breakStatement() (ast.Stmt, error) {
 }
 
 func (p *Parser) returnStatement() (ast.Stmt, error) {
+	if p.curFN == fn_NONE {
+		return nil, p.parseErr(p.previous(), ReturnTopLevel)
+	}
 	keyword := p.previous()
 	var val ast.Expr
 	var err error
@@ -574,7 +615,7 @@ func (p *Parser) call() (ast.Expr, error) {
 func (p *Parser) finishCall(callee ast.Expr) (ast.Expr, error) {
 	args := make([]ast.Expr, 0)
 	if !p.check(token.RIGHT_PAREN) {
-		for {
+		for ok := true; ok; ok = p.match(token.COMMA) {
 			if len(args) >= 255 {
 				p.parseErr(p.peek(), "Can't have more than 255 arguments")
 			}
@@ -583,9 +624,6 @@ func (p *Parser) finishCall(callee ast.Expr) (ast.Expr, error) {
 				return nil, err
 			}
 			args = append(args, arg)
-			if !p.match(token.COMMA) {
-				break
-			}
 		}
 	}
 	paren, err := p.consume(token.RIGHT_PAREN, "Expect ')' after arguments")
@@ -611,6 +649,9 @@ func (p *Parser) primary() (ast.Expr, error) {
 	}
 
 	if p.match(token.SUPER) {
+		if p.curClass == cls_NONE {
+			return nil, p.parseErr(p.previous(), SuperOutSideClass)
+		}
 		keyword := p.previous()
 		_, err := p.consume(token.DOT, "Expect '.' after 'super'")
 		if err != nil {
@@ -624,6 +665,9 @@ func (p *Parser) primary() (ast.Expr, error) {
 	}
 
 	if p.match(token.THIS) {
+		if p.curClass == cls_NONE {
+			return nil, p.parseErr(p.previous(), ThisOutSideClass)
+		}
 		return &ast.This{Keyword: p.previous()}, nil
 	}
 

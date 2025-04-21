@@ -105,9 +105,7 @@ func (r *Resolver) beginScope() {
 func (r *Resolver) endScope() {
 	for _, vi := range r.scopes[len(r.scopes)-1] {
 		if vi.status == vs_DEFINED {
-			r.reportTok(vi.name, &ResolverErr{
-				Type: LocalNotRead,
-			})
+			r.reportTok(vi.name, ErrLocalNotRead)
 		}
 	}
 	r.scopes = r.scopes[:len(r.scopes)-1]
@@ -118,9 +116,7 @@ func (r *Resolver) declare(name *token.Token) {
 		return
 	}
 	if _, ok := r.scopes[len(r.scopes)-1][name.Lexeme]; ok {
-		r.reportTok(name, &ResolverErr{
-			Type: AlreadyInScope,
-		})
+		r.reportTok(name, ErrAlreadyInScope)
 	}
 	r.scopes[len(r.scopes)-1][name.Lexeme] = &varInfo{name, vs_DECLARED}
 }
@@ -144,12 +140,11 @@ func (r *Resolver) VisitLambdaExpr(expr *ast.Lambda) (any, error) {
 }
 
 func (r *Resolver) VisitThisExpr(expr *ast.This) (any, error) {
-	if r.curCLS == cls_NONE {
-		r.reportTok(expr.Keyword, &ResolverErr{
-			Type: ThisOutSideClass,
-		})
+	// moved to parser
+	/* if r.curCLS == cls_NONE {
+		r.reportTok(expr.Keyword, ThisOutSideClass)
 		return nil, nil
-	}
+	} */
 	r.resolveLocal(expr, expr.Keyword, true)
 	return nil, nil
 }
@@ -166,19 +161,16 @@ func (r *Resolver) VisitGetExpr(expr *ast.Get) (any, error) {
 }
 
 func (r *Resolver) VisitSuperExpr(expr *ast.Super) (any, error) {
-	if r.curCLS == cls_NONE {
-		r.reportTok(expr.Keyword, &ResolverErr{
-			Type: SuperOutSideClass,
-		})
-	} else if r.curCLS != cls_SUBCLASS {
-		r.reportTok(expr.Keyword, &ResolverErr{
-			Type: SuperWithNoSuperClass,
-		})
+	// moved to parser
+	/* if r.curCLS == cls_NONE {
+		r.reportTok(expr.Keyword, SuperOutSideClass)
+	} */
+	// } else if r.curCLS != cls_SUBCLASS {
+	if r.curCLS != cls_SUBCLASS {
+		r.reportTok(expr.Keyword, ErrSuperWithNoSuperClass)
 	}
 	if r.curFN == fn_STATIC {
-		r.reportTok(expr.Keyword, &ResolverErr{
-			Type: SuperInStatic,
-		})
+		r.reportTok(expr.Keyword, ErrSuperInStatic)
 	}
 	r.resolveLocal(expr, expr.Keyword, true)
 	return nil, nil
@@ -222,9 +214,7 @@ func (r *Resolver) VisitVariableExpr(expr *ast.Variable) (any, error) {
 	if len(r.scopes) != 0 {
 		state, ok := r.scopes[len(r.scopes)-1][expr.Name.Lexeme]
 		if ok && state.status == vs_DECLARED {
-			r.reportTok(expr.Name, &ResolverErr{
-				Type: ReadLocalInOwnInitializer,
-			})
+			r.reportTok(expr.Name, ErrReadLocalInOwnInitializer)
 		}
 	}
 	r.resolveLocal(expr, expr.Name, true)
@@ -269,16 +259,13 @@ func (r *Resolver) VisitBreakStmt(stmt *ast.Break) (any, error) {
 }
 
 func (r *Resolver) VisitReturnStmt(stmt *ast.Return) (any, error) {
-	if r.curFN == fn_NONE {
-		r.reportTok(stmt.Keyword, &ResolverErr{
-			Type: ReturnTopLevel,
-		})
-	}
+	// moved to parser
+	/* if r.curFN == fn_NONE {
+		r.reportTok(stmt.Keyword, ReturnTopLevel)
+	} */
 	if stmt.Value != nil {
 		if r.curFN == fn_INIT {
-			r.reportTok(stmt.Keyword, &ResolverErr{
-				Type: ReturnFromInit,
-			})
+			r.reportTok(stmt.Keyword, ErrReturnFromInit)
 		}
 		r.resolveExpr(stmt.Value)
 	}
@@ -306,11 +293,10 @@ func (r *Resolver) VisitClassStmt(stmt *ast.Class) (any, error) {
 	r.declare(stmt.Name)
 	r.define(stmt.Name)
 	if stmt.Superclass != nil {
-		if stmt.Name.Lexeme == stmt.Superclass.Name.Lexeme {
-			r.reportTok(stmt.Superclass.Name, &ResolverErr{
-				Type: SelfInheritance,
-			})
-		}
+		// moved to parser
+		/* if stmt.Name.Lexeme == stmt.Superclass.Name.Lexeme {
+			r.reportTok(stmt.Superclass.Name, SelfInheritance)
+		} */
 		r.curCLS = cls_SUBCLASS
 		r.resolveExpr(stmt.Superclass)
 		r.beginScope()
@@ -332,9 +318,7 @@ func (r *Resolver) VisitClassStmt(stmt *ast.Class) (any, error) {
 		}
 		if method.Name.Lexeme == "init" {
 			if method.Func.Kind == ast.STATIC {
-				r.reportTok(method.Name, &ResolverErr{
-					Type: InitIsStatic,
-				})
+				r.reportTok(method.Name, ErrInitIsStatic)
 			}
 			decl = fn_INIT
 		}
@@ -347,10 +331,11 @@ func (r *Resolver) VisitClassStmt(stmt *ast.Class) (any, error) {
 }
 
 func (r *Resolver) reportTok(tok *token.Token, msg error) {
+	errfmt := fmt.Sprintf("[line %d] [Resolver] Error at", tok.Line)
 	if tok.Kind == token.EOF {
-		fmt.Fprintf(os.Stderr, "[line %d] Error at end: %s\n", tok.Line, msg)
+		fmt.Fprintf(os.Stderr, "%s end: %s\n", errfmt, msg)
 	} else {
-		fmt.Fprintf(os.Stderr, "[line %d] Error at '%s': %s\n", tok.Line, tok.Lexeme, msg)
+		fmt.Fprintf(os.Stderr, "%s '%s': %s\n", errfmt, tok.Lexeme, msg)
 	}
 	r.curErr = msg
 }
