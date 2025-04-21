@@ -7,15 +7,19 @@ import (
 	"text/template"
 )
 
-const PATH = "/home/benji/Coding/compilers/gojlox/ast"
-
 func main() {
-	defineAst(PATH, "Expr", []string{
+	cwd, err := os.Getwd()
+	if err != nil {
+		panic(err)
+	}
+	cwd = strings.TrimSuffix(cwd, "tools") + "ast"
+
+	defineAst(cwd, "Expr", []string{
 		"Assign   : Name *token.Token, Operator *token.Token, Value Expr",
 		"Binary   : Left Expr, Operator *token.Token, Right Expr",
 		"Call     : Callee Expr, Paren *token.Token, Arguments []Expr",
 		"Get      : Object Expr, Name *token.Token",
-		"Lambda   : Params []*token.Token, Body []Stmt",
+		"Lambda   : Params []*token.Token, Body []Stmt, Kind FnType",
 		"Grouping : Expression Expr",
 		"Literal  : Value any",
 		"Logical  : Left Expr, Operator *token.Token, Right Expr",
@@ -26,10 +30,10 @@ func main() {
 		"Variable : Name *token.Token",
 	})
 
-	defineAst(PATH, "Stmt", []string{
+	defineAst(cwd, "Stmt", []string{
 		"Block      : Statements []Stmt",
 		"Break      : ",
-		"Class      : Name *token.Token, Superclass *Variable, Methods []*Function, Statics []*Function",
+		"Class      : Name *token.Token, Superclass *Variable, Methods []*Function",
 		"Expression : Expression Expr",
 		"Function   : Name *token.Token, Func *Lambda",
 		"If         : Condition Expr, ThenBranch Stmt, ElseBranch Stmt",
@@ -38,10 +42,12 @@ func main() {
 		"Var        : Name *token.Token, Initializer Expr",
 		"While      : Condition Expr, Body Stmt",
 	})
+
+	defineTypes(cwd, "AstTypes")
 }
 
 func defineAst(path, baseName string, types []string) {
-	tmpl, err := template.New("ast").Parse(TMPL)
+	tmpl, err := template.New("ast").Parse(VISITOR_TMPL)
 	if err != nil {
 		panic(err)
 	}
@@ -75,7 +81,28 @@ func defineAst(path, baseName string, types []string) {
 	f.WriteString(sb.String())
 }
 
-const TMPL = `// GENERATED CODE DO NOT EDIT
+func defineTypes(path string, baseName string) {
+	tmpl, err := template.New("astTypes").Parse(TYPES_TMPL)
+	if err != nil {
+		panic(err)
+	}
+
+	bnLower := strings.ToLower(baseName)
+	var sb strings.Builder
+	err = tmpl.Execute(&sb, nil)
+	if err != nil {
+		panic(err)
+	}
+
+	f, err := os.Create(fmt.Sprintf("%s/%s.go", path, bnLower))
+	if err != nil {
+		panic(err)
+	}
+	defer f.Close()
+	f.WriteString(sb.String())
+}
+
+const VISITOR_TMPL = `// GENERATED CODE DO NOT EDIT
 package ast
 
 import "github.com/Subarctic2796/gojlox/token"
@@ -100,3 +127,15 @@ func ({{$.bn}} *{{$name}}) Accept(visitor {{$.BN}}Visitor) (any, error) {
     return visitor.Visit{{$name}}{{$.BN}}({{$.bn}})
 }
 {{end}}`
+
+const TYPES_TMPL = `// GENERATED CODE DO NOT EDIT
+package ast
+
+type FnType int
+const (
+	NONE FnType = iota
+	LAMBDA
+	FUNC
+	METHOD
+	STATIC
+)`

@@ -1,0 +1,14 @@
+// print 23 + "hi";
+class Math {
+    static square(n) {
+        return n * n;
+    }
+}
+
+class Complex < A {
+    static area(rad) {
+        return 3.14159 * super.square(rad);
+    }
+}
+
+return 23;

@@ -1,8 +1,10 @@
 package resolver
 
 import (
+	"fmt"
+	"os"
+
 	"github.com/Subarctic2796/gojlox/ast"
-	"github.com/Subarctic2796/gojlox/errs"
 	"github.com/Subarctic2796/gojlox/interpreter"
 	"github.com/Subarctic2796/gojlox/token"
 )
@@ -40,27 +42,28 @@ const (
 )
 
 type Resolver struct {
-	ER     errs.ErrorReporter
 	intprt *interpreter.Interpreter
 	scopes []map[string]*varInfo
 	curFN  fnType
 	curCLS clsType
+	curErr error
 }
 
-func NewResolver(er errs.ErrorReporter, intptr *interpreter.Interpreter) *Resolver {
+func NewResolver(intptr *interpreter.Interpreter) *Resolver {
 	return &Resolver{
-		er,
 		intptr,
 		make([]map[string]*varInfo, 0),
 		fn_NONE,
 		cls_NONE,
+		nil,
 	}
 }
 
-func (r *Resolver) ResolveStmts(stmts []ast.Stmt) {
+func (r *Resolver) ResolveStmts(stmts []ast.Stmt) error {
 	for _, s := range stmts {
 		r.resolveStmt(s)
 	}
+	return r.curErr
 }
 
 func (r *Resolver) resolveStmt(stmt ast.Stmt) {
@@ -102,8 +105,8 @@ func (r *Resolver) beginScope() {
 func (r *Resolver) endScope() {
 	for _, vi := range r.scopes[len(r.scopes)-1] {
 		if vi.status == vs_DEFINED {
-			r.ER.ReportTok(vi.name, &errs.ResolverErr{
-				Type: errs.LocalNotRead,
+			r.reportTok(vi.name, &ResolverErr{
+				Type: LocalNotRead,
 			})
 		}
 	}
@@ -115,8 +118,8 @@ func (r *Resolver) declare(name *token.Token) {
 		return
 	}
 	if _, ok := r.scopes[len(r.scopes)-1][name.Lexeme]; ok {
-		r.ER.ReportTok(name, &errs.ResolverErr{
-			Type: errs.AlreadyInScope,
+		r.reportTok(name, &ResolverErr{
+			Type: AlreadyInScope,
 		})
 	}
 	r.scopes[len(r.scopes)-1][name.Lexeme] = &varInfo{name, vs_DECLARED}
@@ -142,8 +145,8 @@ func (r *Resolver) VisitLambdaExpr(expr *ast.Lambda) (any, error) {
 
 func (r *Resolver) VisitThisExpr(expr *ast.This) (any, error) {
 	if r.curCLS == cls_NONE {
-		r.ER.ReportTok(expr.Keyword, &errs.ResolverErr{
-			Type: errs.ThisOutSideClass,
+		r.reportTok(expr.Keyword, &ResolverErr{
+			Type: ThisOutSideClass,
 		})
 		return nil, nil
 	}
@@ -164,17 +167,17 @@ func (r *Resolver) VisitGetExpr(expr *ast.Get) (any, error) {
 
 func (r *Resolver) VisitSuperExpr(expr *ast.Super) (any, error) {
 	if r.curCLS == cls_NONE {
-		r.ER.ReportTok(expr.Keyword, &errs.ResolverErr{
-			Type: errs.SuperOutSideClass,
+		r.reportTok(expr.Keyword, &ResolverErr{
+			Type: SuperOutSideClass,
 		})
 	} else if r.curCLS != cls_SUBCLASS {
-		r.ER.ReportTok(expr.Keyword, &errs.ResolverErr{
-			Type: errs.SuperWithNoSuperClass,
+		r.reportTok(expr.Keyword, &ResolverErr{
+			Type: SuperWithNoSuperClass,
 		})
 	}
 	if r.curFN == fn_STATIC {
-		r.ER.ReportTok(expr.Keyword, &errs.ResolverErr{
-			Type: errs.SuperInStatic,
+		r.reportTok(expr.Keyword, &ResolverErr{
+			Type: SuperInStatic,
 		})
 	}
 	r.resolveLocal(expr, expr.Keyword, true)
@@ -219,8 +222,8 @@ func (r *Resolver) VisitVariableExpr(expr *ast.Variable) (any, error) {
 	if len(r.scopes) != 0 {
 		state, ok := r.scopes[len(r.scopes)-1][expr.Name.Lexeme]
 		if ok && state.status == vs_DECLARED {
-			r.ER.ReportTok(expr.Name, &errs.ResolverErr{
-				Type: errs.ReadLocalInOwnInitializer,
+			r.reportTok(expr.Name, &ResolverErr{
+				Type: ReadLocalInOwnInitializer,
 			})
 		}
 	}
@@ -267,14 +270,14 @@ func (r *Resolver) VisitBreakStmt(stmt *ast.Break) (any, error) {
 
 func (r *Resolver) VisitReturnStmt(stmt *ast.Return) (any, error) {
 	if r.curFN == fn_NONE {
-		r.ER.ReportTok(stmt.Keyword, &errs.ResolverErr{
-			Type: errs.ReturnTopLevel,
+		r.reportTok(stmt.Keyword, &ResolverErr{
+			Type: ReturnTopLevel,
 		})
 	}
 	if stmt.Value != nil {
 		if r.curFN == fn_INIT {
-			r.ER.ReportTok(stmt.Keyword, &errs.ResolverErr{
-				Type: errs.ReturnFromInit,
+			r.reportTok(stmt.Keyword, &ResolverErr{
+				Type: ReturnFromInit,
 			})
 		}
 		r.resolveExpr(stmt.Value)
@@ -304,8 +307,8 @@ func (r *Resolver) VisitClassStmt(stmt *ast.Class) (any, error) {
 	r.define(stmt.Name)
 	if stmt.Superclass != nil {
 		if stmt.Name.Lexeme == stmt.Superclass.Name.Lexeme {
-			r.ER.ReportTok(stmt.Superclass.Name, &errs.ResolverErr{
-				Type: errs.SelfInheritance,
+			r.reportTok(stmt.Superclass.Name, &ResolverErr{
+				Type: SelfInheritance,
 			})
 		}
 		r.curCLS = cls_SUBCLASS
@@ -324,21 +327,30 @@ func (r *Resolver) VisitClassStmt(stmt *ast.Class) (any, error) {
 	r.scopes[len(r.scopes)-1]["this"] = &varInfo{stmt.Name, vs_IMPLICIT}
 	for _, method := range stmt.Methods {
 		decl := fn_METHOD
+		if method.Func.Kind == ast.STATIC {
+			decl = fn_STATIC
+		}
 		if method.Name.Lexeme == "init" {
+			if method.Func.Kind == ast.STATIC {
+				r.reportTok(method.Name, &ResolverErr{
+					Type: InitIsStatic,
+				})
+			}
 			decl = fn_INIT
 		}
 		r.resolveLambda(method.Func, decl)
 	}
-	for _, method := range stmt.Statics {
-		if method.Name.Lexeme == "init" {
-			r.ER.ReportTok(method.Name, &errs.ResolverErr{
-				Type: errs.InitIsStatic,
-			})
-		}
-		r.resolveLambda(method.Func, fn_STATIC)
-	}
-	// if stmt.Superclass != nil {
-	// 	r.endScope()
-	// }
+	/* if stmt.Superclass != nil {
+		r.endScope()
+	} */
 	return nil, nil
+}
+
+func (r *Resolver) reportTok(tok *token.Token, msg error) {
+	if tok.Kind == token.EOF {
+		fmt.Fprintf(os.Stderr, "[line %d] Error at end: %s\n", tok.Line, msg)
+	} else {
+		fmt.Fprintf(os.Stderr, "[line %d] Error at '%s': %s\n", tok.Line, tok.Lexeme, msg)
+	}
+	r.curErr = msg
 }

@@ -1,40 +1,38 @@
 package parser
 
 import (
-	"errors"
 	"fmt"
+	"os"
 	"slices"
 
 	"github.com/Subarctic2796/gojlox/ast"
-	"github.com/Subarctic2796/gojlox/errs"
 	"github.com/Subarctic2796/gojlox/token"
 )
 
 // TODO: even if we error we should still return the AST
 type Parser struct {
-	ER             errs.ErrorReporter
 	tokens         []*token.Token
 	cur, loopDepth int
+	curErr         error
 }
 
-func NewParser(tokens []*token.Token, ER errs.ErrorReporter) *Parser {
-	return &Parser{ER, tokens, 0, 0}
+func NewParser(tokens []*token.Token) *Parser {
+	return &Parser{tokens, 0, 0, nil}
 }
 
-func (p *Parser) Parse() ([]ast.Stmt, []error) {
+func (p *Parser) Parse() ([]ast.Stmt, error) {
 	stmts := make([]ast.Stmt, 0, 16)
-	errList := make([]error, 0)
 	for !p.isAtEnd() {
 		stmt, err := p.declaration()
 		if err != nil {
-			errList = append(errList, err)
+			p.curErr = err
 		}
 		stmts = append(stmts, stmt)
 	}
-	if len(errList) != 0 {
-		return nil, errList
+	if p.curErr != nil {
+		return nil, p.curErr
 	}
-	return stmts, errList
+	return stmts, nil
 }
 
 func (p *Parser) declaration() (ast.Stmt, error) {
@@ -47,14 +45,14 @@ func (p *Parser) declaration() (ast.Stmt, error) {
 	}
 	if p.match(token.VAR) {
 		val, err := p.varDeclaration()
-		if errors.Is(err, errs.ErrParse) {
+		if err != nil {
 			p.synchronise()
 			return nil, err
 		}
 		return val, nil
 	}
 	val, err := p.statement()
-	if errors.Is(err, errs.ErrParse) {
+	if err != nil {
 		p.synchronise()
 		return nil, err
 	}
@@ -79,24 +77,22 @@ func (p *Parser) classDeclaration() (ast.Stmt, error) {
 		return nil, err
 	}
 	methods := make([]*ast.Function, 0)
-	statics := make([]*ast.Function, 0)
 	for !p.check(token.RIGHT_BRACE) && !p.isAtEnd() {
-		isStatic := p.match(token.STATIC)
-		method, err := p.function("method")
+		isStatic, kind := p.match(token.STATIC), "method"
+		if isStatic {
+			kind = "static"
+		}
+		method, err := p.function(kind)
 		if err != nil {
 			return nil, err
 		}
-		if isStatic {
-			statics = append(statics, method)
-		} else {
-			methods = append(methods, method)
-		}
+		methods = append(methods, method)
 	}
 	_, err = p.consume(token.RIGHT_BRACE, "Expect '}' after class body")
 	if err != nil {
 		return nil, err
 	}
-	return &ast.Class{Name: name, Superclass: supercls, Methods: methods, Statics: statics}, nil
+	return &ast.Class{Name: name, Superclass: supercls, Methods: methods}, nil
 }
 
 func (p *Parser) function(kind string) (*ast.Function, error) {
@@ -151,7 +147,18 @@ func (p *Parser) lambda(kind string) (*ast.Lambda, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &ast.Lambda{Params: params, Body: body}, nil
+	fnKind := ast.NONE
+	switch kind {
+	case "function":
+		fnKind = ast.FUNC
+	case "method":
+		fnKind = ast.METHOD
+	case "static":
+		fnKind = ast.STATIC
+	case "lambda":
+		fnKind = ast.LAMDA
+	}
+	return &ast.Lambda{Params: params, Body: body, Kind: fnKind}, nil
 }
 
 func (p *Parser) varDeclaration() (ast.Stmt, error) {
@@ -621,7 +628,7 @@ func (p *Parser) primary() (ast.Expr, error) {
 	}
 
 	if p.match(token.FUN) {
-		return p.lambda("function")
+		return p.lambda("lambda")
 	}
 
 	if p.match(token.IDENTIFIER) {
@@ -650,8 +657,9 @@ func (p *Parser) consume(kind token.TokenType, msg string) (*token.Token, error)
 }
 
 func (p *Parser) parseErr(token *token.Token, msg string) error {
-	p.ER.ReportTok(token, fmt.Errorf(msg))
-	return errs.ErrParse
+	err := fmt.Errorf(msg)
+	p.reportTok(token, err)
+	return err
 }
 
 func (p *Parser) previous() *token.Token {
@@ -710,4 +718,13 @@ func (p *Parser) synchronise() {
 		}
 		p.advance()
 	}
+}
+
+func (p *Parser) reportTok(tok *token.Token, msg error) {
+	if tok.Kind == token.EOF {
+		fmt.Fprintf(os.Stderr, "[line %d] [Parser] Error at end: %s\n", tok.Line, msg)
+	} else {
+		fmt.Fprintf(os.Stderr, "[line %d] [Parser] Error at '%s': %s\n", tok.Line, tok.Lexeme, msg)
+	}
+	p.curErr = msg
 }

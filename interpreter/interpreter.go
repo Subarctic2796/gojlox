@@ -3,29 +3,28 @@ package interpreter
 import (
 	"errors"
 	"fmt"
+	"os"
 
 	"github.com/Subarctic2796/gojlox/ast"
-	"github.com/Subarctic2796/gojlox/errs"
 	"github.com/Subarctic2796/gojlox/token"
 )
 
 type Interpreter struct {
-	ER      errs.ErrorReporter
-	Globals *Env
-	env     *Env
-	locals  map[ast.Expr]int
+	Globals, env *Env
+	locals       map[ast.Expr]int
+	CurErr       error
 }
 
-func NewInterpreter(ER errs.ErrorReporter) *Interpreter {
+func NewInterpreter() *Interpreter {
 	globals := NewEnv(nil)
 	for _, fn := range NativeFns {
 		globals.Define(fn.Name(), fn)
 	}
 	return &Interpreter{
-		ER,
 		globals,
 		globals,
 		make(map[ast.Expr]int),
+		nil,
 	}
 }
 
@@ -33,7 +32,7 @@ func (i *Interpreter) Interpret(stmts []ast.Stmt) error {
 	for _, s := range stmts {
 		_, err := i.execute(s)
 		if err != nil {
-			i.ER.ReportRunTimeErr(err)
+			i.reportRunTimeErr(err)
 			return err
 		}
 	}
@@ -105,7 +104,7 @@ func (i *Interpreter) VisitClassStmt(stmt *ast.Class) (any, error) {
 			return nil, err
 		}
 		if _, ok := supercls.(*LoxClass); !ok {
-			return nil, &errs.RunTimeErr{
+			return nil, &RunTimeErr{
 				Tok: stmt.Superclass.Name,
 				Msg: "Superclass must be a class",
 			}
@@ -121,12 +120,8 @@ func (i *Interpreter) VisitClassStmt(stmt *ast.Class) (any, error) {
 		isinit := method.Name.Lexeme == "init"
 		methods[method.Name.Lexeme] = NewLoxFn(method.Name.Lexeme, method.Func, i.env, isinit)
 	}
-	statics := make(map[string]*LoxFn)
-	for _, method := range stmt.Statics {
-		statics[method.Name.Lexeme] = NewLoxFn(method.Name.Lexeme, method.Func, i.env, false)
-	}
 	scls, _ := supercls.(*LoxClass)
-	klass := NewLoxClass(stmt.Name.Lexeme, scls, methods, statics)
+	klass := NewLoxClass(stmt.Name.Lexeme, scls, methods)
 	if supercls != nil {
 		i.env = i.env.Enclosing
 	}
@@ -154,7 +149,7 @@ func (i *Interpreter) VisitSuperExpr(expr *ast.Super) (any, error) {
 	obj := i.env.GetAt(dist-1, "this").(*LoxInstance)
 	method := superclass.FindMethod(expr.Method.Lexeme)
 	if method == nil {
-		return nil, &errs.RunTimeErr{
+		return nil, &RunTimeErr{
 			Tok: expr.Method,
 			Msg: fmt.Sprintf("Undefined property '%s'", expr.Method.Lexeme),
 		}
@@ -178,7 +173,7 @@ func (i *Interpreter) VisitCallExpr(expr *ast.Call) (any, error) {
 
 	fn, ok := callee.(LoxCallable)
 	if !ok {
-		return nil, &errs.RunTimeErr{
+		return nil, &RunTimeErr{
 			Tok: expr.Paren,
 			Msg: "Can only call functions and classes",
 		}
@@ -188,7 +183,7 @@ func (i *Interpreter) VisitCallExpr(expr *ast.Call) (any, error) {
 	}
 	if len(args) != fn.Arity() {
 		msg := fmt.Sprintf("Expected %d arguments but got %d", fn.Arity(), len(args))
-		return nil, &errs.RunTimeErr{Tok: expr.Paren, Msg: msg}
+		return nil, &RunTimeErr{Tok: expr.Paren, Msg: msg}
 	}
 	return fn.Call(i, args)
 }
@@ -199,21 +194,21 @@ func (i *Interpreter) VisitGetExpr(expr *ast.Get) (any, error) {
 		return nil, err
 	}
 	if klass, ok := obj.(*LoxClass); ok {
-		if len(klass.Statics) != 0 {
-			static := klass.FindMethod(expr.Name.Lexeme)
-			if static != nil {
-				return static, nil
+		static := klass.FindMethod(expr.Name.Lexeme)
+		if static != nil {
+			if static.Func.Kind != ast.STATIC {
+				return nil, &RunTimeErr{
+					Tok: expr.Name,
+					Msg: fmt.Sprintf("Undefined static function '%s'", expr.Name.Lexeme),
+				}
 			}
-			return nil, &errs.RunTimeErr{
-				Tok: expr.Name,
-				Msg: fmt.Sprintf("Undefined static function '%s'", expr.Name.Lexeme),
-			}
+			return static, nil
 		}
 	}
 	if inst, ok := obj.(*LoxInstance); ok {
 		return inst.Get(expr.Name)
 	}
-	return nil, &errs.RunTimeErr{
+	return nil, &RunTimeErr{
 		Tok: expr.Name,
 		Msg: "Only instances have properties",
 	}
@@ -230,7 +225,7 @@ func (i *Interpreter) VisitSetExpr(expr *ast.Set) (any, error) {
 	}
 	inst, ok := obj.(*LoxInstance)
 	if !ok {
-		return nil, &errs.RunTimeErr{
+		return nil, &RunTimeErr{
 			Tok: expr.Name,
 			Msg: "Only instances have fields",
 		}
@@ -416,7 +411,7 @@ func (i *Interpreter) VisitBinaryExpr(expr *ast.Binary) (any, error) {
 				return l + r, nil
 			}
 		}
-		return nil, &errs.RunTimeErr{
+		return nil, &RunTimeErr{
 			Tok: expr.Operator,
 			Msg: "Operands must be two numbers or two strings",
 		}
@@ -426,7 +421,7 @@ func (i *Interpreter) VisitBinaryExpr(expr *ast.Binary) (any, error) {
 			return nil, err
 		}
 		if r == 0.0 {
-			return nil, &errs.RunTimeErr{
+			return nil, &RunTimeErr{
 				Tok: expr.Operator,
 				Msg: "Division by 0",
 			}
@@ -512,7 +507,7 @@ func (i *Interpreter) checkNumberOperand(oprtr *token.Token, opr any) (float64, 
 	if r, ok := opr.(float64); ok {
 		return r, nil
 	}
-	return 0, &errs.RunTimeErr{
+	return 0, &RunTimeErr{
 		Tok: oprtr,
 		Msg: "Operand must be a number",
 	}
@@ -524,8 +519,13 @@ func (i *Interpreter) checkNumberOperands(oprtr *token.Token, lhs any, rhs any) 
 	if lok && rok {
 		return l, r, nil
 	}
-	return 0, 0, &errs.RunTimeErr{
+	return 0, 0, &RunTimeErr{
 		Tok: oprtr,
 		Msg: "Operands must be a number",
 	}
+}
+
+func (i *Interpreter) reportRunTimeErr(msg error) {
+	fmt.Fprintln(os.Stderr, msg)
+	i.CurErr = msg
 }

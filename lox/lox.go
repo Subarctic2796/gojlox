@@ -2,16 +2,13 @@ package lox
 
 import (
 	"bufio"
-	"errors"
 	"fmt"
 	"os"
 
-	"github.com/Subarctic2796/gojlox/errs"
 	"github.com/Subarctic2796/gojlox/interpreter"
 	"github.com/Subarctic2796/gojlox/parser"
 	"github.com/Subarctic2796/gojlox/resolver"
 	"github.com/Subarctic2796/gojlox/scanner"
-	"github.com/Subarctic2796/gojlox/token"
 )
 
 type Lox struct {
@@ -27,75 +24,65 @@ func NewLox() *Lox {
 func (l *Lox) RunFile(path string) error {
 	f, err := os.ReadFile(path)
 	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
 		return err
 	}
-	intprt := interpreter.NewInterpreter(l)
-	l.Run(string(f), intprt)
-	if l.HadErr {
-		os.Exit(65)
-	}
-	if l.HadRunTimeErr {
-		os.Exit(70)
+	intprt := interpreter.NewInterpreter()
+	err = l.Run(string(f), intprt)
+	if err != nil {
+		if l.HadErr {
+			os.Exit(65)
+		}
+		if l.HadRunTimeErr {
+			os.Exit(70)
+		}
+		panic(err)
 	}
 	return nil
 }
 
 func (l *Lox) RunPrompt() error {
 	scnr := bufio.NewScanner(os.Stdin)
-	intprt := interpreter.NewInterpreter(l)
+	intprt := interpreter.NewInterpreter()
 	for {
 		fmt.Print("> ")
 		if !scnr.Scan() {
 			fmt.Print("\n")
-			return scnr.Err()
+			if err := scnr.Err(); err != nil {
+				fmt.Fprintln(os.Stderr, err)
+				return err
+			}
 		}
 		l.Run(scnr.Text(), intprt)
-		l.HadErr = false
+		l.HadErr, l.HadRunTimeErr, l.CurErr = false, false, nil
 	}
 }
 
-func (l *Lox) Run(src string, intprt *interpreter.Interpreter) {
-	scanner := scanner.NewScanner(src, l)
-	if l.HadErr {
-		return
-	}
-	parser := parser.NewParser(scanner.ScanTokens(), l)
-	stmts, errs := parser.Parse()
-	if l.HadErr {
-		fmt.Fprintf(os.Stderr, "%s\n", errs)
-		return
+func (l *Lox) Run(src string, intprt *interpreter.Interpreter) error {
+	scanner := scanner.NewScanner(src)
+	toks, err := scanner.ScanTokens()
+	if err != nil {
+		l.HadErr, l.CurErr = true, err
+		return l.CurErr
 	}
 
-	rslvr := resolver.NewResolver(l, intprt)
-	rslvr.ResolveStmts(stmts)
-	if l.HadErr {
-		return
+	parser := parser.NewParser(toks)
+	stmts, err := parser.Parse()
+	if err != nil {
+		l.HadErr, l.CurErr = true, err
+		return l.CurErr
 	}
-	intprt.Interpret(stmts)
-}
 
-func (l *Lox) ReportErr(line int, msg error) {
-	l.Report(line, "", msg)
-}
-
-func (l *Lox) Report(line int, where string, msg error) {
-	fmt.Fprintf(os.Stderr, "[line %d] Error%s: %s\n", line, where, msg)
-	l.HadErr = true
-	l.CurErr = msg
-}
-
-func (l *Lox) ReportTok(tok *token.Token, msg error) {
-	if tok.Kind == token.EOF {
-		l.Report(tok.Line, " at end", msg)
-	} else {
-		l.Report(tok.Line, fmt.Sprintf(" at '%s'", tok.Lexeme), msg)
+	rslvr := resolver.NewResolver(intprt)
+	err = rslvr.ResolveStmts(stmts)
+	if err != nil {
+		l.HadErr, l.CurErr = true, err
+		return l.CurErr
 	}
-}
-
-func (l *Lox) ReportRunTimeErr(msg error) {
-	err := &errs.RunTimeErr{}
-	if errors.As(msg, &err) {
-		fmt.Fprintf(os.Stderr, "%s\n[line %d]\n", msg, err.Tok.Line)
+	err = intprt.Interpret(stmts)
+	if err != nil {
+		l.HadRunTimeErr, l.CurErr = true, err
+		return l.CurErr
 	}
-	l.HadRunTimeErr = true
+	return nil
 }

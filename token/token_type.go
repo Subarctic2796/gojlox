@@ -13,6 +13,8 @@ const (
 
 	COMMA
 	DOT
+
+	// terminators
 	SEMICOLON
 
 	// One or two character tokens.

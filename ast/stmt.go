@@ -38,7 +38,6 @@ type Class struct {
 	Name       *token.Token
 	Superclass *Variable
 	Methods    []*Function
-	Statics    []*Function
 }
 
 func (stmt *Class) Accept(visitor StmtVisitor) (any, error) {

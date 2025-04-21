@@ -3,7 +3,6 @@ package interpreter
 import (
 	"fmt"
 
-	"github.com/Subarctic2796/gojlox/errs"
 	"github.com/Subarctic2796/gojlox/token"
 )
 
@@ -28,7 +27,7 @@ func (e *Env) Get(name *token.Token) (any, error) {
 		return e.Enclosing.Get(name)
 	}
 	msg := fmt.Sprintf("Undefined variable '%s'", name.Lexeme)
-	return nil, &errs.RunTimeErr{Tok: name, Msg: msg}
+	return nil, &RunTimeErr{Tok: name, Msg: msg}
 }
 
 func (e *Env) GetAt(dist int, name string) any {
@@ -53,7 +52,7 @@ func (e *Env) Assign(name *token.Token, val any) error {
 		return e.Enclosing.Assign(name, val)
 	}
 	msg := fmt.Sprintf("Undefined variable '%s'", name.Lexeme)
-	return &errs.RunTimeErr{Tok: name, Msg: msg}
+	return &RunTimeErr{Tok: name, Msg: msg}
 }
 
 func (e *Env) AssignAt(dist int, name *token.Token, val any) {

@@ -1,24 +1,32 @@
 package scanner
 
 import (
+	"errors"
+	"fmt"
+	"os"
 	"strconv"
 
-	"github.com/Subarctic2796/gojlox/errs"
 	"github.com/Subarctic2796/gojlox/token"
+)
+
+var (
+	ErrUnexpectedChar      = errors.New("Unexpected character")
+	ErrUnterminatedStr     = errors.New("Unterminated string")
+	ErrUnterminatedComment = errors.New("Unterminated comment")
 )
 
 type Scanner struct {
 	src              []rune
-	ER               errs.ErrorReporter
 	Tokens           []*token.Token
 	start, cur, Line int
+	curErr           error
 }
 
-func NewScanner(src string, er errs.ErrorReporter) *Scanner {
-	return &Scanner{[]rune(src), er, make([]*token.Token, 0, 16), 0, 0, 1}
+func NewScanner(src string) *Scanner {
+	return &Scanner{[]rune(src), make([]*token.Token, 0, 16), 0, 0, 1, nil}
 }
 
-func (s *Scanner) ScanTokens() []*token.Token {
+func (s *Scanner) ScanTokens() ([]*token.Token, error) {
 	for !s.isAtEnd() {
 		s.start = s.cur
 		s.scanToken()
@@ -29,7 +37,10 @@ func (s *Scanner) ScanTokens() []*token.Token {
 		Literal: nil,
 		Line:    s.Line,
 	})
-	return s.Tokens
+	if s.curErr != nil {
+		return nil, s.curErr
+	}
+	return s.Tokens, nil
 }
 
 func (s *Scanner) scanToken() {
@@ -84,7 +95,7 @@ func (s *Scanner) scanToken() {
 		} else if s.isAlpha(c) {
 			s.identifier()
 		} else {
-			s.ER.ReportErr(s.Line, errs.ErrUnexpectedChar)
+			s.report(ErrUnexpectedChar)
 		}
 	}
 }
@@ -111,7 +122,7 @@ func (s *Scanner) multiLineComment() {
 		s.advance()
 	}
 	if s.isAtEnd() {
-		s.ER.ReportErr(s.Line, errs.ErrUnterminatedComment)
+		s.report(ErrUnterminatedComment)
 		return
 	}
 	s.advance()
@@ -173,7 +184,7 @@ func (s *Scanner) addString() {
 	}
 
 	if s.isAtEnd() {
-		s.ER.ReportErr(s.Line, errs.ErrUnterminatedStr)
+		s.report(ErrUnterminatedStr)
 		return
 	}
 
@@ -224,4 +235,14 @@ func (s *Scanner) addToken(kind token.TokenType) {
 func (s *Scanner) addTokenWithLit(kind token.TokenType, lit any) {
 	txt := string(s.src[s.start:s.cur])
 	s.Tokens = append(s.Tokens, &token.Token{Kind: kind, Lexeme: txt, Literal: lit, Line: s.Line})
+}
+
+func (s *Scanner) report(msg error) {
+	fullMsg := fmt.Sprintf("[line %d] [Lexer] Error: %s", s.Line, msg)
+	if errors.Is(msg, ErrUnexpectedChar) {
+		fmt.Fprintf(os.Stderr, "%s '%c'\n", fullMsg, s.src[s.cur-1])
+	} else {
+		fmt.Fprintln(os.Stderr, fullMsg)
+	}
+	s.curErr = msg
 }

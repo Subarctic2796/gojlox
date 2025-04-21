@@ -73,6 +73,7 @@ func (expr *Grouping) Accept(visitor ExprVisitor) (any, error) {
 type Lambda struct {
 	Params []*token.Token
 	Body   []Stmt
+	Kind   FnType
 }
 
 func (expr *Lambda) Accept(visitor ExprVisitor) (any, error) {
