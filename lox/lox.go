@@ -6,9 +6,9 @@ import (
 	"os"
 
 	"github.com/Subarctic2796/gojlox/interpreter"
+	"github.com/Subarctic2796/gojlox/lexer"
 	"github.com/Subarctic2796/gojlox/parser"
 	"github.com/Subarctic2796/gojlox/resolver"
-	"github.com/Subarctic2796/gojlox/scanner"
 )
 
 type Lox struct {
@@ -50,14 +50,14 @@ func (l *Lox) RunPrompt() error {
 			fmt.Print("\n")
 			return scnr.Err()
 		}
-		l.Run(scnr.Text(), intprt)
+		_ = l.Run(scnr.Text(), intprt)
 		l.HadErr, l.HadRunTimeErr, l.CurErr = false, false, nil
 	}
 }
 
 func (l *Lox) Run(src string, intprt *interpreter.Interpreter) error {
-	scanner := scanner.NewScanner(src)
-	toks, err := scanner.ScanTokens()
+	lex := scanner.NewLexer(src)
+	toks, err := lex.ScanTokens()
 	if err != nil {
 		l.HadErr, l.CurErr = true, err
 		return l.CurErr

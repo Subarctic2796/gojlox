@@ -8,3 +8,18 @@ for (var i = 0; i < 5; i = i + 1) {
     }
     print "done with j";
 }
+
+print "testing scopes";
+for (var i = 0; i < 5; i += 1) {
+    for (var j = 0; j < 5; j += 1) {
+        var fromJ = "I am from j's scope";
+        if (j == 2) {
+            break;
+            print fromJ;
+        }
+        printf("i =", i);
+        printf("j =", j);
+    }
+    print "done with j";
+    print fromJ;
+}

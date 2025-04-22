@@ -66,11 +66,11 @@ func (i *Interpreter) lookUpVariable(name *token.Token, expr ast.Expr) (any, err
 	}
 }
 
-func (i *Interpreter) executeBlock(statements []ast.Stmt, env *Env) (any, error) {
+func (i *Interpreter) executeBlock(stmts []ast.Stmt, env *Env) (any, error) {
 	prv := i.env
 	defer func() { i.env = prv }()
 	i.env = env
-	for _, stmt := range statements {
+	for _, stmt := range stmts {
 		_, err := i.execute(stmt)
 		if err != nil {
 			return nil, err
@@ -117,8 +117,7 @@ func (i *Interpreter) VisitClassStmt(stmt *ast.Class) (any, error) {
 	}
 	methods := make(map[string]*LoxFn)
 	for _, method := range stmt.Methods {
-		isinit := method.Name.Lexeme == "init"
-		methods[method.Name.Lexeme] = NewLoxFn(method.Name.Lexeme, method.Func, i.env, isinit)
+		methods[method.Name.Lexeme] = NewLoxFn(method.Name.Lexeme, method.Func, i.env)
 	}
 	scls, _ := supercls.(*LoxClass)
 	klass := NewLoxClass(stmt.Name.Lexeme, scls, methods)
@@ -134,13 +133,13 @@ func (i *Interpreter) VisitClassStmt(stmt *ast.Class) (any, error) {
 
 func (i *Interpreter) VisitFunctionStmt(stmt *ast.Function) (any, error) {
 	name := stmt.Name.Lexeme
-	fn := NewLoxFn(name, stmt.Func, i.env, false)
+	fn := NewLoxFn(name, stmt.Func, i.env)
 	i.env.Define(stmt.Name.Lexeme, fn)
 	return nil, nil
 }
 
 func (i *Interpreter) VisitLambdaExpr(expr *ast.Lambda) (any, error) {
-	return NewLoxFn("", expr, i.env, false), nil
+	return NewLoxFn("", expr, i.env), nil
 }
 
 func (i *Interpreter) VisitSuperExpr(expr *ast.Super) (any, error) {
@@ -196,7 +195,7 @@ func (i *Interpreter) VisitGetExpr(expr *ast.Get) (any, error) {
 	if klass, ok := obj.(*LoxClass); ok {
 		static := klass.FindMethod(expr.Name.Lexeme)
 		if static != nil {
-			if static.Func.Kind != ast.STATIC {
+			if static.Func.Kind != ast.FN_STATIC {
 				return nil, &RunTimeErr{
 					Tok: expr.Name,
 					Msg: fmt.Sprintf("Undefined static function '%s'", expr.Name.Lexeme),

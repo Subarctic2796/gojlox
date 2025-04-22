@@ -7,12 +7,12 @@ import (
 )
 
 type Env struct {
-	Values    map[string]any
 	Enclosing *Env
+	Values    map[string]any
 }
 
 func NewEnv(enclosing *Env) *Env {
-	return &Env{make(map[string]any), enclosing}
+	return &Env{enclosing, make(map[string]any)}
 }
 
 func (e *Env) Define(name string, val any) {
@@ -36,7 +36,6 @@ func (e *Env) GetAt(dist int, name string) any {
 
 func (e *Env) Ancestor(dist int) *Env {
 	env := e
-	// for i := 0; i < dist; i++ {
 	for range dist {
 		env = env.Enclosing
 	}

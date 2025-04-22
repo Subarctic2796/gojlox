@@ -10,20 +10,10 @@ import (
 )
 
 const (
-	ThisOutSideClass  = "Can't use 'this' outside of a class"
-	SuperOutSideClass = "Can't use 'super' outside of a class"
-	ReturnTopLevel    = "Can't return from top-level code"
-	SelfInheritance   = "A class can't inherit from itself"
-)
-
-type fnType int
-
-const (
-	fn_NONE fnType = iota
-	fn_FUNC
-	fn_INIT
-	fn_METHOD
-	fn_STATIC
+	ThisNotInClass  = "Can't use 'this' outside of a class"
+	SuperNotInClass = "Can't use 'super' outside of a class"
+	ReturnTopLevel  = "Can't return from top-level code"
+	InheritsSelf    = "A class can't inherit from itself"
 )
 
 type clsType int
@@ -39,7 +29,7 @@ type Parser struct {
 	tokens         []*token.Token
 	cur, loopDepth int
 	curClass       clsType
-	curFN          fnType
+	curFN          ast.FnType
 	curErr         error
 }
 
@@ -49,7 +39,7 @@ func NewParser(tokens []*token.Token) *Parser {
 		0,
 		0,
 		cls_NONE,
-		fn_NONE,
+		ast.FN_NONE,
 		nil,
 	}
 }
@@ -74,7 +64,10 @@ func (p *Parser) declaration() (ast.Stmt, error) {
 		return p.classDeclaration()
 	}
 	if p.check(token.FUN) && p.checkNext(token.IDENTIFIER) {
-		p.consume(token.FUN, "")
+		_, err := p.consume(token.FUN, "")
+		if err != nil {
+			return nil, err
+		}
 		return p.function("function")
 	}
 	if p.match(token.VAR) {
@@ -108,7 +101,7 @@ func (p *Parser) classDeclaration() (ast.Stmt, error) {
 		}
 		supercls = &ast.Variable{Name: p.previous()}
 		if supercls.Name.Lexeme == name.Lexeme {
-			return nil, p.parseErr(supercls.Name, SelfInheritance)
+			return nil, p.parseErr(supercls.Name, InheritsSelf)
 		}
 	}
 	_, err = p.consume(token.LEFT_BRACE, "Expect '{' before class body")
@@ -148,8 +141,8 @@ func (p *Parser) function(kind string) (*ast.Function, error) {
 }
 
 func (p *Parser) lambda(kind string) (*ast.Lambda, error) {
-	p.curFN = fn_FUNC
-	defer func() { p.curFN = fn_NONE }()
+	p.curFN = ast.FN_FUNC
+	defer func() { p.curFN = ast.FN_NONE }()
 	msg := fmt.Sprintf("Expect '(' after %s name", kind)
 	_, err := p.consume(token.LEFT_PAREN, msg)
 	if err != nil {
@@ -160,7 +153,7 @@ func (p *Parser) lambda(kind string) (*ast.Lambda, error) {
 	if !p.check(token.RIGHT_PAREN) {
 		for ok := true; ok; ok = p.match(token.COMMA) {
 			if len(params) >= 255 {
-				p.parseErr(p.peek(), "Can't have more than 255 parameters")
+				_ = p.parseErr(p.peek(), "Can't have more than 255 parameters")
 			}
 			ident, err := p.consume(token.IDENTIFIER, "Expect parameter name")
 			if err != nil {
@@ -185,16 +178,16 @@ func (p *Parser) lambda(kind string) (*ast.Lambda, error) {
 	if err != nil {
 		return nil, err
 	}
-	fnKind := ast.NONE
+	fnKind := ast.FN_NONE
 	switch kind {
 	case "function":
-		fnKind = ast.FUNC
+		fnKind = ast.FN_FUNC
 	case "method":
-		fnKind = ast.METHOD
+		fnKind = ast.FN_METHOD
 	case "static":
-		fnKind = ast.STATIC
+		fnKind = ast.FN_STATIC
 	case "lambda":
-		fnKind = ast.LAMDA
+		fnKind = ast.FN_LAMBDA
 	}
 	return &ast.Lambda{Params: params, Body: body, Kind: fnKind}, nil
 }
@@ -249,7 +242,7 @@ func (p *Parser) statement() (ast.Stmt, error) {
 
 func (p *Parser) breakStatement() (ast.Stmt, error) {
 	if p.loopDepth == 0 {
-		p.parseErr(p.previous(), "Must be in a loop to use 'break'")
+		_ = p.parseErr(p.previous(), "Must be in a loop to use 'break'")
 	}
 	_, err := p.consume(token.SEMICOLON, "Expect ';' after 'break'")
 	if err != nil {
@@ -259,7 +252,7 @@ func (p *Parser) breakStatement() (ast.Stmt, error) {
 }
 
 func (p *Parser) returnStatement() (ast.Stmt, error) {
-	if p.curFN == fn_NONE {
+	if p.curFN == ast.FN_NONE {
 		return nil, p.parseErr(p.previous(), ReturnTopLevel)
 	}
 	keyword := p.previous()
@@ -473,7 +466,7 @@ func (p *Parser) assignment() (ast.Expr, error) {
 				Value:  val,
 			}, nil
 		}
-		p.parseErr(opr, "Invalid assignment target")
+		_ = p.parseErr(opr, "Invalid assignment target")
 	}
 	return expr, nil
 }
@@ -617,7 +610,7 @@ func (p *Parser) finishCall(callee ast.Expr) (ast.Expr, error) {
 	if !p.check(token.RIGHT_PAREN) {
 		for ok := true; ok; ok = p.match(token.COMMA) {
 			if len(args) >= 255 {
-				p.parseErr(p.peek(), "Can't have more than 255 arguments")
+				_ = p.parseErr(p.peek(), "Can't have more than 255 arguments")
 			}
 			arg, err := p.expression()
 			if err != nil {
@@ -650,7 +643,7 @@ func (p *Parser) primary() (ast.Expr, error) {
 
 	if p.match(token.SUPER) {
 		if p.curClass == cls_NONE {
-			return nil, p.parseErr(p.previous(), SuperOutSideClass)
+			return nil, p.parseErr(p.previous(), SuperNotInClass)
 		}
 		keyword := p.previous()
 		_, err := p.consume(token.DOT, "Expect '.' after 'super'")
@@ -666,7 +659,7 @@ func (p *Parser) primary() (ast.Expr, error) {
 
 	if p.match(token.THIS) {
 		if p.curClass == cls_NONE {
-			return nil, p.parseErr(p.previous(), ThisOutSideClass)
+			return nil, p.parseErr(p.previous(), ThisNotInClass)
 		}
 		return &ast.This{Keyword: p.previous()}, nil
 	}
@@ -700,9 +693,14 @@ func (p *Parser) consume(kind token.TokenType, msg string) (*token.Token, error)
 	return nil, p.parseErr(p.peek(), msg)
 }
 
-func (p *Parser) parseErr(token *token.Token, msg string) error {
-	err := fmt.Errorf(msg)
-	p.reportTok(token, err)
+func (p *Parser) parseErr(tok *token.Token, msg string) error {
+	err := fmt.Errorf("%s", msg)
+	if tok.Kind == token.EOF {
+		fmt.Fprintf(os.Stderr, "[line %d] [Parser] Error at end: %s\n", tok.Line, err)
+	} else {
+		fmt.Fprintf(os.Stderr, "[line %d] [Parser] Error at '%s': %s\n", tok.Line, tok.Lexeme, err)
+	}
+	p.curErr = err
 	return err
 }
 
@@ -762,13 +760,4 @@ func (p *Parser) synchronise() {
 		}
 		p.advance()
 	}
-}
-
-func (p *Parser) reportTok(tok *token.Token, msg error) {
-	if tok.Kind == token.EOF {
-		fmt.Fprintf(os.Stderr, "[line %d] [Parser] Error at end: %s\n", tok.Line, msg)
-	} else {
-		fmt.Fprintf(os.Stderr, "[line %d] [Parser] Error at '%s': %s\n", tok.Line, tok.Lexeme, msg)
-	}
-	p.curErr = msg
 }

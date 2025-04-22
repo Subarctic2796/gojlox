@@ -23,16 +23,6 @@ const (
 	vs_IMPLICIT
 )
 
-type fnType int
-
-const (
-	fn_NONE fnType = iota
-	fn_FUNC
-	fn_INIT
-	fn_METHOD
-	fn_STATIC
-)
-
 type clsType int
 
 const (
@@ -44,7 +34,7 @@ const (
 type Resolver struct {
 	intprt *interpreter.Interpreter
 	scopes []map[string]*varInfo
-	curFN  fnType
+	curFN  ast.FnType
 	curCLS clsType
 	curErr error
 }
@@ -53,7 +43,7 @@ func NewResolver(intptr *interpreter.Interpreter) *Resolver {
 	return &Resolver{
 		intptr,
 		make([]map[string]*varInfo, 0),
-		fn_NONE,
+		ast.FN_NONE,
 		cls_NONE,
 		nil,
 	}
@@ -67,11 +57,11 @@ func (r *Resolver) ResolveStmts(stmts []ast.Stmt) error {
 }
 
 func (r *Resolver) resolveStmt(stmt ast.Stmt) {
-	stmt.Accept(r)
+	_, _ = stmt.Accept(r)
 }
 
 func (r *Resolver) resolveExpr(expr ast.Expr) {
-	expr.Accept(r)
+	_, _ = expr.Accept(r)
 }
 
 func (r *Resolver) resolveLocal(expr ast.Expr, name *token.Token, isRead bool) {
@@ -86,7 +76,7 @@ func (r *Resolver) resolveLocal(expr ast.Expr, name *token.Token, isRead bool) {
 	}
 }
 
-func (r *Resolver) resolveLambda(fn *ast.Lambda, kind fnType) {
+func (r *Resolver) resolveLambda(fn *ast.Lambda, kind ast.FnType) {
 	enclosingFun := r.curFN
 	r.curFN = kind
 	r.beginScope()
@@ -95,7 +85,7 @@ func (r *Resolver) resolveLambda(fn *ast.Lambda, kind fnType) {
 		r.declare(param)
 		r.define(param)
 	}
-	r.ResolveStmts(fn.Body)
+	_ = r.ResolveStmts(fn.Body)
 }
 
 func (r *Resolver) beginScope() {
@@ -135,14 +125,14 @@ func (r *Resolver) VisitAssignExpr(expr *ast.Assign) (any, error) {
 }
 
 func (r *Resolver) VisitLambdaExpr(expr *ast.Lambda) (any, error) {
-	r.resolveLambda(expr, fn_FUNC)
+	r.resolveLambda(expr, ast.FN_FUNC)
 	return nil, nil
 }
 
 func (r *Resolver) VisitThisExpr(expr *ast.This) (any, error) {
 	// moved to parser
 	/* if r.curCLS == cls_NONE {
-		r.reportTok(expr.Keyword, ThisOutSideClass)
+		r.reportTok(expr.Keyword, ErrThisNotInClass)
 		return nil, nil
 	} */
 	r.resolveLocal(expr, expr.Keyword, true)
@@ -163,13 +153,13 @@ func (r *Resolver) VisitGetExpr(expr *ast.Get) (any, error) {
 func (r *Resolver) VisitSuperExpr(expr *ast.Super) (any, error) {
 	// moved to parser
 	/* if r.curCLS == cls_NONE {
-		r.reportTok(expr.Keyword, SuperOutSideClass)
+		r.reportTok(expr.Keyword, ErrSuperNotInClass)
 	} */
 	// } else if r.curCLS != cls_SUBCLASS {
 	if r.curCLS != cls_SUBCLASS {
 		r.reportTok(expr.Keyword, ErrSuperWithNoSuperClass)
 	}
-	if r.curFN == fn_STATIC {
+	if r.curFN == ast.FN_STATIC {
 		r.reportTok(expr.Keyword, ErrSuperInStatic)
 	}
 	r.resolveLocal(expr, expr.Keyword, true)
@@ -223,8 +213,8 @@ func (r *Resolver) VisitVariableExpr(expr *ast.Variable) (any, error) {
 
 func (r *Resolver) VisitBlockStmt(stmt *ast.Block) (any, error) {
 	r.beginScope()
-	defer r.endScope()
-	r.ResolveStmts(stmt.Statements)
+	defer func() { r.endScope() }()
+	_ = r.ResolveStmts(stmt.Statements)
 	return nil, nil
 }
 
@@ -236,7 +226,7 @@ func (r *Resolver) VisitExpressionStmt(stmt *ast.Expression) (any, error) {
 func (r *Resolver) VisitFunctionStmt(stmt *ast.Function) (any, error) {
 	r.declare(stmt.Name)
 	r.define(stmt.Name)
-	r.resolveLambda(stmt.Func, fn_FUNC)
+	r.resolveLambda(stmt.Func, ast.FN_FUNC)
 	return nil, nil
 }
 
@@ -260,11 +250,11 @@ func (r *Resolver) VisitBreakStmt(stmt *ast.Break) (any, error) {
 
 func (r *Resolver) VisitReturnStmt(stmt *ast.Return) (any, error) {
 	// moved to parser
-	/* if r.curFN == fn_NONE {
-		r.reportTok(stmt.Keyword, ReturnTopLevel)
+	/* if r.curFN == ast.FN_NONE {
+		r.reportTok(stmt.Keyword, ErrReturnTopLevel)
 	} */
 	if stmt.Value != nil {
-		if r.curFN == fn_INIT {
+		if r.curFN == ast.FN_INIT {
 			r.reportTok(stmt.Keyword, ErrReturnFromInit)
 		}
 		r.resolveExpr(stmt.Value)
@@ -295,7 +285,7 @@ func (r *Resolver) VisitClassStmt(stmt *ast.Class) (any, error) {
 	if stmt.Superclass != nil {
 		// moved to parser
 		/* if stmt.Name.Lexeme == stmt.Superclass.Name.Lexeme {
-			r.reportTok(stmt.Superclass.Name, SelfInheritance)
+			r.reportTok(stmt.Superclass.Name, ErrInheritsSelf)
 		} */
 		r.curCLS = cls_SUBCLASS
 		r.resolveExpr(stmt.Superclass)
@@ -312,15 +302,16 @@ func (r *Resolver) VisitClassStmt(stmt *ast.Class) (any, error) {
 	}()
 	r.scopes[len(r.scopes)-1]["this"] = &varInfo{stmt.Name, vs_IMPLICIT}
 	for _, method := range stmt.Methods {
-		decl := fn_METHOD
-		if method.Func.Kind == ast.STATIC {
-			decl = fn_STATIC
+		decl := ast.FN_METHOD
+		if method.Func.Kind == ast.FN_STATIC {
+			decl = ast.FN_STATIC
 		}
 		if method.Name.Lexeme == "init" {
-			if method.Func.Kind == ast.STATIC {
+			if method.Func.Kind == ast.FN_STATIC {
 				r.reportTok(method.Name, ErrInitIsStatic)
 			}
-			decl = fn_INIT
+			method.Func.Kind = ast.FN_INIT
+			decl = ast.FN_INIT
 		}
 		r.resolveLambda(method.Func, decl)
 	}

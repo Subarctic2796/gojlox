@@ -17,17 +17,16 @@ type LoxFn struct {
 	Name    string
 	Func    *ast.Lambda
 	Closure *Env
-	IsInit  bool
 }
 
-func NewLoxFn(name string, fn *ast.Lambda, closure *Env, isInit bool) *LoxFn {
-	return &LoxFn{name, fn, closure, isInit}
+func NewLoxFn(name string, fn *ast.Lambda, closure *Env) *LoxFn {
+	return &LoxFn{name, fn, closure}
 }
 
 func (fn *LoxFn) Bind(inst *LoxInstance) *LoxFn {
 	env := NewEnv(fn.Closure)
 	env.Define("this", inst)
-	return &LoxFn{fn.Name, fn.Func, env, fn.IsInit}
+	return &LoxFn{fn.Name, fn.Func, env}
 }
 
 func (fn *LoxFn) Call(intprt *Interpreter, args []any) (any, error) {
@@ -39,14 +38,14 @@ func (fn *LoxFn) Call(intprt *Interpreter, args []any) (any, error) {
 	if err != nil {
 		retVal := &ReturnErr{}
 		if errors.As(err, &retVal) {
-			if fn.IsInit {
+			if fn.Func.Kind == ast.FN_INIT {
 				return fn.Closure.GetAt(0, "this"), nil
 			}
 			return retVal.Value, nil
 		}
 		return nil, err
 	}
-	if fn.IsInit {
+	if fn.Func.Kind == ast.FN_INIT {
 		return fn.Closure.GetAt(0, "this"), nil
 	}
 	return nil, nil
@@ -91,7 +90,7 @@ func (lc *LoxClass) Call(intprt *Interpreter, args []any) (any, error) {
 	inst := NewLoxInstance(lc)
 	init := lc.FindMethod("init")
 	if init != nil {
-		init.Bind(inst).Call(intprt, args)
+		_, _ = init.Bind(inst).Call(intprt, args)
 	}
 	return inst, nil
 }

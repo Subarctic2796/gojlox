@@ -1,0 +1,247 @@
+package scanner
+
+import (
+	"errors"
+	"fmt"
+	"os"
+	"strconv"
+
+	"github.com/Subarctic2796/gojlox/token"
+)
+
+var (
+	ErrUnexpectedChar      = errors.New("Unexpected character")
+	ErrUnterminatedStr     = errors.New("Unterminated string")
+	ErrUnterminatedComment = errors.New("Unterminated comment")
+)
+
+type Lexer struct {
+	src              []rune
+	Tokens           []*token.Token
+	start, cur, Line int
+	curErr           error
+}
+
+func NewLexer(src string) *Lexer {
+	return &Lexer{[]rune(src), make([]*token.Token, 0, 16), 0, 0, 1, nil}
+}
+
+func (l *Lexer) ScanTokens() ([]*token.Token, error) {
+	for !l.isAtEnd() {
+		l.start = l.cur
+		l.scanToken()
+	}
+	l.Tokens = append(l.Tokens, &token.Token{
+		Kind:    token.EOF,
+		Lexeme:  "",
+		Literal: nil,
+		Line:    l.Line,
+	})
+	if l.curErr != nil {
+		return nil, l.curErr
+	}
+	return l.Tokens, nil
+}
+
+func (l *Lexer) scanToken() {
+	switch c := l.advance(); c {
+	case '(':
+		l.addToken(token.LEFT_PAREN)
+	case ')':
+		l.addToken(token.RIGHT_PAREN)
+	case '{':
+		l.addToken(token.LEFT_BRACE)
+	case '}':
+		l.addToken(token.RIGHT_BRACE)
+	case ',':
+		l.addToken(token.COMMA)
+	case '.':
+		l.addToken(token.DOT)
+	case ';':
+		l.addToken(token.SEMICOLON)
+	case '*':
+		l.addMatchToken('=', token.STAR_EQUAL, token.STAR)
+	case '+':
+		l.addMatchToken('=', token.PLUS_EQUAL, token.PLUS)
+	case '-':
+		l.addMatchToken('=', token.MINUS_EQUAL, token.MINUS)
+	case '!':
+		l.addMatchToken('=', token.BANG_EQUAL, token.BANG)
+	case '=':
+		l.addMatchToken('=', token.EQUAL_EQUAL, token.EQUAL)
+	case '<':
+		l.addMatchToken('=', token.LESS_EQUAL, token.LESS)
+	case '>':
+		l.addMatchToken('=', token.GREATER_EQUAL, token.GREATER)
+	case '/':
+		if l.match('/') {
+			for l.peek() != '\n' && !l.isAtEnd() {
+				l.advance()
+			}
+		} else if l.match('*') {
+			l.multiLineComment()
+		} else {
+			l.addMatchToken('=', token.SLASH_EQUAL, token.SLASH)
+		}
+	case ' ', '\r', '\t':
+	case '\n':
+		l.Line++
+	case '"':
+		l.addString()
+	default:
+		if l.isDigit(c) {
+			l.addNumber()
+		} else if l.isAlpha(c) {
+			l.identifier()
+		} else {
+			l.report(ErrUnexpectedChar)
+		}
+	}
+}
+
+func (l *Lexer) multiLineComment() {
+	nesting := 1
+	for nesting > 0 && !l.isAtEnd() {
+		p, pn := l.peek(), l.peekNext()
+		if p == '\n' || l.src[l.cur] == '\n' {
+			l.Line++
+		}
+		if p == '/' && pn == '*' {
+			l.advance()
+			l.advance()
+			nesting++
+			continue
+		}
+		if p == '*' && pn == '/' {
+			l.advance()
+			l.advance()
+			nesting--
+			continue
+		}
+		l.advance()
+	}
+	if l.isAtEnd() {
+		l.report(ErrUnterminatedComment)
+		return
+	}
+	l.advance()
+}
+
+func (l *Lexer) identifier() {
+	for l.isAlphaNumeric(l.peek()) {
+		l.advance()
+	}
+	txt := string(l.src[l.start:l.cur])
+	l.addToken(token.LookUpKeyWord(txt))
+}
+
+func (l *Lexer) isAlphaNumeric(c rune) bool {
+	return l.isAlpha(c) || l.isDigit(c)
+}
+
+func (l *Lexer) isAlpha(c rune) bool {
+	return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_'
+}
+
+func (l *Lexer) addNumber() {
+	for l.isDigit(l.peek()) {
+		l.advance()
+	}
+
+	if l.peek() == '.' && l.isDigit(l.peekNext()) {
+		l.advance()
+
+		for l.isDigit(l.peek()) {
+			l.advance()
+		}
+	}
+
+	n, err := strconv.ParseFloat(string(l.src[l.start:l.cur]), 64)
+	if err != nil {
+		panic(err)
+	}
+	l.addTokenWithLit(token.NUMBER, n)
+}
+
+func (l *Lexer) peekNext() rune {
+	if l.cur+1 >= len(l.src) {
+		return 0
+	}
+	return l.src[l.cur+1]
+}
+
+func (l *Lexer) isDigit(c rune) bool {
+	return c >= '0' && c <= '9'
+}
+
+func (l *Lexer) addString() {
+	for l.peek() != '"' && !l.isAtEnd() {
+		if l.peek() == '\n' {
+			l.Line++
+		}
+		l.advance()
+	}
+
+	if l.isAtEnd() {
+		l.report(ErrUnterminatedStr)
+		return
+	}
+
+	l.advance()
+	val := string(l.src[l.start+1 : l.cur-1])
+	l.addTokenWithLit(token.STRING, val)
+}
+
+func (l *Lexer) addMatchToken(expected rune, t1, t2 token.TokenType) {
+	if l.match(expected) {
+		l.addToken(t1)
+	} else {
+		l.addToken(t2)
+	}
+}
+
+func (l *Lexer) match(expected rune) bool {
+	if l.isAtEnd() {
+		return false
+	}
+	if l.src[l.cur] != expected {
+		return false
+	}
+	l.cur++
+	return true
+}
+
+func (l *Lexer) peek() rune {
+	if l.isAtEnd() {
+		return 0
+	}
+	return l.src[l.cur]
+}
+
+func (l *Lexer) isAtEnd() bool {
+	return l.cur >= len(l.src)
+}
+
+func (l *Lexer) advance() rune {
+	l.cur++
+	return l.src[l.cur-1]
+}
+
+func (l *Lexer) addToken(kind token.TokenType) {
+	l.addTokenWithLit(kind, nil)
+}
+
+func (l *Lexer) addTokenWithLit(kind token.TokenType, lit any) {
+	txt := string(l.src[l.start:l.cur])
+	l.Tokens = append(l.Tokens, &token.Token{Kind: kind, Lexeme: txt, Literal: lit, Line: l.Line})
+}
+
+func (l *Lexer) report(msg error) {
+	fullMsg := fmt.Sprintf("[line %d] [Lexer] Error: %s", l.Line, msg)
+	if errors.Is(msg, ErrUnexpectedChar) {
+		fmt.Fprintf(os.Stderr, "%s '%c'\n", fullMsg, l.src[l.cur-1])
+	} else {
+		fmt.Fprintln(os.Stderr, fullMsg)
+	}
+	l.curErr = msg
+}

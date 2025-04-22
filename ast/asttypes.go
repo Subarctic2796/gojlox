@@ -4,9 +4,11 @@ package ast
 type FnType int
 
 const (
-	NONE FnType = iota
-	LAMDA
-	FUNC
-	METHOD
-	STATIC
+	FN_NONE FnType = iota
+	FN_LAMBDA
+	FN_FUNC
+	FN_INIT
+	FN_METHOD
+	FN_STATIC
 )
+

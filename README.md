@@ -31,7 +31,7 @@ go run .
 ```
 
 # Currently working on
-- [ ] move some of the resolver checks to the parser
+- [ ] move away from visitor pattern, and just use straight type checks
 
 # Current plans
 - [ ] add support for expressions in the repl
@@ -45,6 +45,7 @@ go run .
 - [ ] add type hints (want to make it statically typed if possible)
 - [ ] add errors so that scripts can recover
 - [ ] add proper variadics
-- [ ] add ability to define multiple variables on the same line
-- [ ] add `--tokens` and `--ast` flags to output the tokens and ast respectively to stdout
+- [ ] add ability to define multiple variables on the same line `var a, b, c = 1, "hi", true;`
+- [ ] add test suite
+- [ ] add `--tokens` and `--ast` flags to output the tokens and ast respectively to stdout (maybe compile flag also)
   - [ ] add pretty printer for ast
