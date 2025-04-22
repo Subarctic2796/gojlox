@@ -44,8 +44,7 @@ func (s *Scanner) ScanTokens() ([]*token.Token, error) {
 }
 
 func (s *Scanner) scanToken() {
-	c := s.advance()
-	switch c {
+	switch c := s.advance(); c {
 	case '(':
 		s.addToken(token.LEFT_PAREN)
 	case ')':

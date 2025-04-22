@@ -30,6 +30,9 @@ cd tools
 go run .
 ```
 
+# Currently working on
+- [ ] move some of the resolver checks to the parser
+
 # Current plans
 - [ ] add support for expressions in the repl
 - [ ] improve performance
@@ -43,3 +46,5 @@ go run .
 - [ ] add errors so that scripts can recover
 - [ ] add proper variadics
 - [ ] add ability to define multiple variables on the same line
+- [ ] add `--tokens` and `--ast` flags to output the tokens and ast respectively to stdout
+  - [ ] add pretty printer for ast
