@@ -1,10 +1,15 @@
-// GENERATED CODE DO NOT EDIT
 package ast
 
-import "github.com/Subarctic2796/gojlox/token"
+import (
+	"fmt"
+	"strings"
+
+	"github.com/Subarctic2796/gojlox/token"
+)
 
 type Stmt interface {
 	Accept(visitor StmtVisitor) (any, error)
+	String() string
 }
 
 type StmtVisitor interface {
@@ -28,10 +33,24 @@ func (stmt *Block) Accept(visitor StmtVisitor) (any, error) {
 	return visitor.VisitBlockStmt(stmt)
 }
 
+func (stmt *Block) String() string {
+	var sb strings.Builder
+	sb.WriteString("(block ")
+	for _, s := range stmt.Statements {
+		sb.WriteString(s.String())
+	}
+	sb.WriteByte(')')
+	return sb.String()
+}
+
 type Break struct{}
 
 func (stmt *Break) Accept(visitor StmtVisitor) (any, error) {
 	return visitor.VisitBreakStmt(stmt)
+}
+
+func (stmt *Break) String() string {
+	return "(break)"
 }
 
 type Class struct {
@@ -44,6 +63,19 @@ func (stmt *Class) Accept(visitor StmtVisitor) (any, error) {
 	return visitor.VisitClassStmt(stmt)
 }
 
+func (stmt *Class) String() string {
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("(class %s", stmt.Name.Lexeme))
+	if stmt.Superclass != nil {
+		sb.WriteString(fmt.Sprintf(" < %s", stmt.Superclass))
+	}
+	for _, fn := range stmt.Methods {
+		sb.WriteString(fmt.Sprintf(" %s", fn))
+	}
+	sb.WriteByte(')')
+	return sb.String()
+}
+
 type Expression struct {
 	Expression Expr
 }
@@ -52,13 +84,24 @@ func (stmt *Expression) Accept(visitor StmtVisitor) (any, error) {
 	return visitor.VisitExpressionStmt(stmt)
 }
 
+func (stmt *Expression) String() string {
+	return fmt.Sprintf("(; %s)", stmt.Expression)
+}
+
 type Function struct {
 	Name *token.Token
 	Func *Lambda
+	/* Params []*token.Token
+	Body   []Stmt
+	Kind   FnType */
 }
 
 func (stmt *Function) Accept(visitor StmtVisitor) (any, error) {
 	return visitor.VisitFunctionStmt(stmt)
+}
+
+func (stmt *Function) String() string {
+	return fmt.Sprintf("(fun %s(%s", stmt.Name.Lexeme, stmt.Func)
 }
 
 type If struct {
@@ -71,12 +114,23 @@ func (stmt *If) Accept(visitor StmtVisitor) (any, error) {
 	return visitor.VisitIfStmt(stmt)
 }
 
+func (stmt *If) String() string {
+	if stmt.ElseBranch != nil {
+		return fmt.Sprintf("(if %s)", stmt.Condition)
+	}
+	return fmt.Sprintf("(if-else %s %s)", stmt.Condition, stmt.ElseBranch)
+}
+
 type Print struct {
 	Expression Expr
 }
 
 func (stmt *Print) Accept(visitor StmtVisitor) (any, error) {
 	return visitor.VisitPrintStmt(stmt)
+}
+
+func (stmt *Print) String() string {
+	return fmt.Sprintf("(print %s", stmt.Expression)
 }
 
 type Return struct {
@@ -88,6 +142,13 @@ func (stmt *Return) Accept(visitor StmtVisitor) (any, error) {
 	return visitor.VisitReturnStmt(stmt)
 }
 
+func (stmt *Return) String() string {
+	if stmt.Value == nil {
+		return "(return)"
+	}
+	return fmt.Sprintf("(return %s)", stmt.Value)
+}
+
 type Var struct {
 	Name        *token.Token
 	Initializer Expr
@@ -97,6 +158,14 @@ func (stmt *Var) Accept(visitor StmtVisitor) (any, error) {
 	return visitor.VisitVarStmt(stmt)
 }
 
+func (stmt *Var) String() string {
+	sname := stmt.Name.Lexeme
+	if stmt.Initializer == nil {
+		return fmt.Sprintf("(var %s)", sname)
+	}
+	return fmt.Sprintf("(var %s = %s)", sname, stmt.Initializer)
+}
+
 type While struct {
 	Condition Expr
 	Body      Stmt
@@ -104,4 +173,8 @@ type While struct {
 
 func (stmt *While) Accept(visitor StmtVisitor) (any, error) {
 	return visitor.VisitWhileStmt(stmt)
+}
+
+func (stmt *While) String() string {
+	return fmt.Sprintf("(while %s %s)", stmt.Condition, stmt.Body)
 }

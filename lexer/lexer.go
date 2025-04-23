@@ -10,9 +10,9 @@ import (
 )
 
 var (
-	ErrUnexpectedChar      = errors.New("Unexpected character")
-	ErrUnterminatedStr     = errors.New("Unterminated string")
-	ErrUnterminatedComment = errors.New("Unterminated comment")
+	ErrUnexpectedChar      = errors.New("unexpected character")
+	ErrUnterminatedStr     = errors.New("unterminated string")
+	ErrUnterminatedComment = errors.New("unterminated comment")
 )
 
 type Lexer struct {
@@ -31,12 +31,7 @@ func (l *Lexer) ScanTokens() ([]*token.Token, error) {
 		l.start = l.cur
 		l.scanToken()
 	}
-	l.Tokens = append(l.Tokens, &token.Token{
-		Kind:    token.EOF,
-		Lexeme:  "",
-		Literal: nil,
-		Line:    l.Line,
-	})
+	l.Tokens = append(l.Tokens, token.NewToken(token.EOF, "", nil, l.Line))
 	if l.curErr != nil {
 		return nil, l.curErr
 	}
@@ -149,6 +144,7 @@ func (l *Lexer) addNumber() {
 	}
 
 	if l.peek() == '.' && l.isDigit(l.peekNext()) {
+		// consume '.'
 		l.advance()
 
 		for l.isDigit(l.peek()) {
@@ -233,7 +229,7 @@ func (l *Lexer) addToken(kind token.TokenType) {
 
 func (l *Lexer) addTokenWithLit(kind token.TokenType, lit any) {
 	txt := string(l.src[l.start:l.cur])
-	l.Tokens = append(l.Tokens, &token.Token{Kind: kind, Lexeme: txt, Literal: lit, Line: l.Line})
+	l.Tokens = append(l.Tokens, token.NewToken(kind, txt, lit, l.Line))
 }
 
 func (l *Lexer) report(msg error) {

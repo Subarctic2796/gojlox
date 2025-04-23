@@ -102,8 +102,7 @@ func defineTypes(path string, baseName string) {
 	f.WriteString(sb.String())
 }
 
-const VISITOR_TMPL = `// GENERATED CODE DO NOT EDIT
-package ast
+const VISITOR_TMPL = `package ast
 
 import "github.com/Subarctic2796/gojlox/token"
 
@@ -128,10 +127,10 @@ func ({{$.bn}} *{{$name}}) Accept(visitor {{$.BN}}Visitor) (any, error) {
 }
 {{end}}`
 
-const TYPES_TMPL = `// GENERATED CODE DO NOT EDIT
-package ast
+const TYPES_TMPL = `package ast
 
 type FnType int
+
 const (
 	FN_NONE FnType = iota
 	FN_LAMBDA

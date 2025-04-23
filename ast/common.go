@@ -1,4 +1,3 @@
-// GENERATED CODE DO NOT EDIT
 package ast
 
 type FnType int
@@ -11,4 +10,3 @@ const (
 	FN_METHOD
 	FN_STATIC
 )
-

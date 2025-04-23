@@ -32,6 +32,7 @@ go run .
 
 # Currently working on
 - [ ] move away from visitor pattern, and just use straight type checks
+- [ ] add pretty printer for ast
 
 # Current plans
 - [ ] add support for expressions in the repl
@@ -49,3 +50,7 @@ go run .
 - [ ] add test suite
 - [ ] add `--tokens` and `--ast` flags to output the tokens and ast respectively to stdout (maybe compile flag also)
   - [ ] add pretty printer for ast
+- [ ] consolidate `Return`, `Break`, `Continue` Statements into `ControlStmt`
+  - [ ] add `continue` keyword
+- [ ] remove `genAst.go` script
+- [ ] add native classes (act as modules maybe?)

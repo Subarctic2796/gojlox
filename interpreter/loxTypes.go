@@ -34,7 +34,12 @@ func (fn *LoxFn) Call(intprt *Interpreter, args []any) (any, error) {
 	for i, param := range fn.Func.Params {
 		env.Define(param.Lexeme, args[i])
 	}
-	_, err := intprt.executeBlock(fn.Func.Body, env)
+	var err error
+	if !intprt.useV2 {
+		_, err = intprt.executeBlock(fn.Func.Body, env)
+	} else {
+		_, err = intprt.executeBlock2(fn.Func.Body, env)
+	}
 	if err != nil {
 		retVal := &ReturnErr{}
 		if errors.As(err, &retVal) {
