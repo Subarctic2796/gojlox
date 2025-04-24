@@ -14,13 +14,12 @@ type Stmt interface {
 
 type StmtVisitor interface {
 	VisitBlockStmt(stmt *Block) (any, error)
-	VisitBreakStmt(stmt *Break) (any, error)
 	VisitClassStmt(stmt *Class) (any, error)
 	VisitExpressionStmt(stmt *Expression) (any, error)
 	VisitFunctionStmt(stmt *Function) (any, error)
 	VisitIfStmt(stmt *If) (any, error)
 	VisitPrintStmt(stmt *Print) (any, error)
-	VisitReturnStmt(stmt *Return) (any, error)
+	VisitControlStmt(stmt *Control) (any, error)
 	VisitVarStmt(stmt *Var) (any, error)
 	VisitWhileStmt(stmt *While) (any, error)
 }
@@ -41,16 +40,6 @@ func (stmt *Block) String() string {
 	}
 	sb.WriteByte(')')
 	return sb.String()
-}
-
-type Break struct{}
-
-func (stmt *Break) Accept(visitor StmtVisitor) (any, error) {
-	return visitor.VisitBreakStmt(stmt)
-}
-
-func (stmt *Break) String() string {
-	return "(break)"
 }
 
 type Class struct {
@@ -133,20 +122,28 @@ func (stmt *Print) String() string {
 	return fmt.Sprintf("(print %s", stmt.Expression)
 }
 
-type Return struct {
+type Control struct {
+	Kind    ControlType
 	Keyword *token.Token
 	Value   Expr
 }
 
-func (stmt *Return) Accept(visitor StmtVisitor) (any, error) {
-	return visitor.VisitReturnStmt(stmt)
+func (stmt *Control) Accept(visitor StmtVisitor) (any, error) {
+	return visitor.VisitControlStmt(stmt)
 }
 
-func (stmt *Return) String() string {
-	if stmt.Value == nil {
-		return "(return)"
+func (stmt *Control) String() string {
+	switch stmt.Kind {
+	case CNTRL_RETURN:
+		if stmt.Value == nil {
+			return "(return)"
+		}
+		return fmt.Sprintf("(return %s)", stmt.Value)
+	case CNTRL_BREAK:
+		return "(break)"
+	default:
+		panic("unreachable")
 	}
-	return fmt.Sprintf("(return %s)", stmt.Value)
 }
 
 type Var struct {

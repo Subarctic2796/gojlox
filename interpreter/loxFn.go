@@ -59,10 +59,22 @@ func (fn *UserFn) Arity() int {
 }
 
 func (fn *UserFn) String() string {
-	if len(fn.Name) == 0 {
+	switch fn.Func.Kind {
+	case ast.FN_LAMBDA:
 		return "<lambda>"
+	case ast.FN_FUNC:
+		return fmt.Sprintf("<fn %s>", fn.Name)
+	case ast.FN_STATIC:
+		return fmt.Sprintf("<static fn %s>", fn.Name)
+	case ast.FN_METHOD:
+		return fmt.Sprintf("<method fn %s>", fn.Name)
+	case ast.FN_INIT:
+		return fmt.Sprintf("<init fn %s>", fn.Name)
+	case ast.FN_NATIVE:
+		panic("[unreachable] can't have a user defined function that is native")
+	default:
+		panic("[unreachable] can't have a function that is of type none")
 	}
-	return fmt.Sprintf("<fn %s>", fn.Name)
 }
 
 func (fn *UserFn) LoxFnType() ast.FnType {

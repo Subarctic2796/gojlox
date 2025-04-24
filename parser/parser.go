@@ -68,7 +68,7 @@ func (p *Parser) declaration() (ast.Stmt, error) {
 		if err != nil {
 			return nil, err
 		}
-		return p.function("function")
+		return p.function(ast.FN_FUNC)
 	}
 	if p.match(token.VAR) {
 		val, err := p.varDeclaration()
@@ -110,9 +110,9 @@ func (p *Parser) classDeclaration() (ast.Stmt, error) {
 	}
 	methods := make([]*ast.Function, 0)
 	for !p.check(token.RIGHT_BRACE) && !p.isAtEnd() {
-		isStatic, kind := p.match(token.STATIC), "method"
+		isStatic, kind := p.match(token.STATIC), ast.FN_METHOD
 		if isStatic {
-			kind = "static"
+			kind = ast.FN_STATIC
 		}
 		method, err := p.function(kind)
 		if err != nil {
@@ -127,7 +127,7 @@ func (p *Parser) classDeclaration() (ast.Stmt, error) {
 	return &ast.Class{Name: name, Superclass: supercls, Methods: methods}, nil
 }
 
-func (p *Parser) function(kind string) (*ast.Function, error) {
+func (p *Parser) function(kind ast.FnType) (*ast.Function, error) {
 	msg := fmt.Sprintf("Expect %s name", kind)
 	name, err := p.consume(token.IDENTIFIER, msg)
 	if err != nil {
@@ -140,7 +140,7 @@ func (p *Parser) function(kind string) (*ast.Function, error) {
 	return &ast.Function{Name: name, Func: body}, nil
 }
 
-func (p *Parser) lambda(kind string) (*ast.Lambda, error) {
+func (p *Parser) lambda(kind ast.FnType) (*ast.Lambda, error) {
 	p.curFN = ast.FN_FUNC
 	defer func() { p.curFN = ast.FN_NONE }()
 	msg := fmt.Sprintf("Expect '(' after %s name", kind)
@@ -178,18 +178,7 @@ func (p *Parser) lambda(kind string) (*ast.Lambda, error) {
 	if err != nil {
 		return nil, err
 	}
-	fnKind := ast.FN_NONE
-	switch kind {
-	case "function":
-		fnKind = ast.FN_FUNC
-	case "method":
-		fnKind = ast.FN_METHOD
-	case "static":
-		fnKind = ast.FN_STATIC
-	case "lambda":
-		fnKind = ast.FN_LAMBDA
-	}
-	return &ast.Lambda{Params: params, Body: body, Kind: fnKind}, nil
+	return &ast.Lambda{Params: params, Body: body, Kind: kind}, nil
 }
 
 func (p *Parser) varDeclaration() (ast.Stmt, error) {
@@ -248,7 +237,7 @@ func (p *Parser) breakStatement() (ast.Stmt, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &ast.Break{}, nil
+	return &ast.Control{Kind: ast.CNTRL_BREAK, Keyword: p.previous(), Value: nil}, nil
 }
 
 func (p *Parser) returnStatement() (ast.Stmt, error) {
@@ -268,7 +257,7 @@ func (p *Parser) returnStatement() (ast.Stmt, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &ast.Return{Keyword: keyword, Value: val}, nil
+	return &ast.Control{Kind: ast.CNTRL_RETURN, Keyword: keyword, Value: val}, nil
 }
 
 func (p *Parser) forStatement() (ast.Stmt, error) {
@@ -665,7 +654,7 @@ func (p *Parser) primary() (ast.Expr, error) {
 	}
 
 	if p.match(token.FUN) {
-		return p.lambda("lambda")
+		return p.lambda(ast.FN_LAMBDA)
 	}
 
 	if p.match(token.IDENTIFIER) {
@@ -755,7 +744,7 @@ func (p *Parser) synchronise() {
 			return
 		}
 		switch p.peek().Kind {
-		case token.CLASS, token.FUN, token.VAR, token.FOR, token.IF, token.WHILE, token.PRINT, token.RETURN:
+		case token.CLASS, token.FUN, token.VAR, token.FOR, token.IF, token.WHILE, token.PRINT, token.RETURN, token.BREAK, token.STATIC:
 			return
 		}
 		p.advance()

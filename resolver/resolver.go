@@ -138,11 +138,6 @@ func (r *Resolver) VisitLambdaExpr(expr *ast.Lambda) (any, error) {
 }
 
 func (r *Resolver) VisitThisExpr(expr *ast.This) (any, error) {
-	// moved to parser
-	/* if r.curCLS == cls_NONE {
-		r.reportTok(expr.Keyword, ErrThisNotInClass)
-		return nil, nil
-	} */
 	r.resolveLocal(expr, expr.Keyword, true)
 	return nil, nil
 }
@@ -159,11 +154,6 @@ func (r *Resolver) VisitGetExpr(expr *ast.Get) (any, error) {
 }
 
 func (r *Resolver) VisitSuperExpr(expr *ast.Super) (any, error) {
-	// moved to parser
-	/* if r.curCLS == cls_NONE {
-		r.reportTok(expr.Keyword, ErrSuperNotInClass)
-	} */
-	// } else if r.curCLS != cls_SUBCLASS {
 	if r.curCLS != cls_SUBCLASS {
 		r.reportTok(expr.Keyword, ErrSuperWithNoSuperClass)
 	}
@@ -252,15 +242,10 @@ func (r *Resolver) VisitPrintStmt(stmt *ast.Print) (any, error) {
 	return nil, nil
 }
 
-func (r *Resolver) VisitBreakStmt(stmt *ast.Break) (any, error) {
-	return nil, nil
-}
-
-func (r *Resolver) VisitReturnStmt(stmt *ast.Return) (any, error) {
-	// moved to parser
-	/* if r.curFN == ast.FN_NONE {
-		r.reportTok(stmt.Keyword, ErrReturnTopLevel)
-	} */
+func (r *Resolver) VisitControlStmt(stmt *ast.Control) (any, error) {
+	if stmt.Kind != ast.CNTRL_RETURN {
+		return nil, nil
+	}
 	if stmt.Value != nil {
 		if r.curFN == ast.FN_INIT {
 			r.reportTok(stmt.Keyword, ErrReturnFromInit)
@@ -291,10 +276,6 @@ func (r *Resolver) VisitClassStmt(stmt *ast.Class) (any, error) {
 	r.declare(stmt.Name)
 	r.define(stmt.Name)
 	if stmt.Superclass != nil {
-		// moved to parser
-		/* if stmt.Name.Lexeme == stmt.Superclass.Name.Lexeme {
-			r.reportTok(stmt.Superclass.Name, ErrInheritsSelf)
-		} */
 		r.curCLS = cls_SUBCLASS
 		r.resolveExpr(stmt.Superclass)
 		r.beginScope()
@@ -336,129 +317,94 @@ func (r *Resolver) reportTok(tok *token.Token, msg error) {
 	r.curErr = msg
 }
 
-func (r *Resolver) resolveExpr2(expr ast.Expr) {
-	switch ex := expr.(type) {
+func (r *Resolver) resolveExpr2(exprNode ast.Expr) {
+	switch expr := exprNode.(type) {
 	case *ast.Assign:
-		r.exprAssign(ex)
+		r.resolveExpr2(expr.Value)
+		r.resolveLocal(expr, expr.Name, false)
 	case *ast.Binary:
-		r.exprBinary(ex)
+		r.resolveExpr2(expr.Left)
+		r.resolveExpr2(expr.Right)
 	case *ast.Call:
-		r.exprCall(ex)
-	case *ast.Get:
-		r.exprGet(ex)
-	case *ast.Grouping:
-		r.exprGrouping(ex)
-	case *ast.Lambda:
-		r.exprLambda(ex)
-	case *ast.Literal:
-		r.exprLiteral(ex)
-	case *ast.Logical:
-		r.exprLogical(ex)
-	case *ast.Set:
-		r.exprSet(ex)
-	case *ast.Super:
-		r.exprSuper(ex)
-	case *ast.This:
-		r.exprThis(ex)
-	case *ast.Unary:
-		r.exprUnary(ex)
-	case *ast.Variable:
-		r.exprVariable(ex)
-	}
-}
-
-func (r *Resolver) resolveStmt2(stmt ast.Stmt) {
-	switch s := stmt.(type) {
-	case *ast.Block:
-		r.stmtBlock(s)
-	case *ast.Break:
-		r.stmtBreak(s)
-	case *ast.Class:
-		r.classStmt(s)
-	case *ast.Expression:
-		r.stmtExpression(s)
-	case *ast.Function:
-		r.stmtFunction(s)
-	case *ast.If:
-		r.stmtIf(s)
-	case *ast.Print:
-		r.stmtPrint(s)
-	case *ast.Return:
-		r.stmtReturn(s)
-	case *ast.Var:
-		r.stmtVar(s)
-	case *ast.While:
-		r.stmtWhile(s)
-	}
-}
-
-func (r *Resolver) exprVariable(expr *ast.Variable) {
-	if len(r.scopes) != 0 {
-		state, ok := r.scopes[len(r.scopes)-1][expr.Name.Lexeme]
-		if ok && state.status == vs_DECLARED {
-			r.reportTok(expr.Name, ErrReadLocalInOwnInitializer)
+		r.resolveExpr2(expr.Callee)
+		for _, arg := range expr.Arguments {
+			r.resolveExpr2(arg)
 		}
-	}
-	r.resolveLocal(expr, expr.Name, true)
-}
-
-func (r *Resolver) exprUnary(expr *ast.Unary) {
-	r.resolveExpr2(expr.Right)
-}
-
-func (r *Resolver) exprThis(expr *ast.This) {
-	r.resolveLocal(expr, expr.Keyword, true)
-}
-
-func (r *Resolver) exprSuper(expr *ast.Super) {
-	if r.curCLS != cls_SUBCLASS {
-		r.reportTok(expr.Keyword, ErrSuperWithNoSuperClass)
-	}
-	if r.curFN == ast.FN_STATIC {
-		r.reportTok(expr.Keyword, ErrSuperInStatic)
-	}
-	r.resolveLocal(expr, expr.Keyword, true)
-}
-
-func (r *Resolver) exprSet(expr *ast.Set) {
-	r.resolveExpr2(expr.Value)
-	r.resolveExpr2(expr.Object)
-}
-
-func (r *Resolver) exprLogical(expr *ast.Logical) {
-	r.resolveExpr2(expr.Left)
-	r.resolveExpr2(expr.Right)
-}
-
-func (r *Resolver) exprLiteral(_ *ast.Literal) {}
-
-func (r *Resolver) exprLambda(expr *ast.Lambda) {
-	r.resolveLambda(expr, ast.FN_FUNC)
-}
-
-func (r *Resolver) exprGrouping(expr *ast.Grouping) {
-	r.resolveExpr2(expr.Expression)
-}
-
-func (r *Resolver) exprGet(expr *ast.Get) {
-	r.resolveExpr2(expr.Object)
-}
-
-func (r *Resolver) exprCall(expr *ast.Call) {
-	r.resolveExpr2(expr.Callee)
-	for _, arg := range expr.Arguments {
-		r.resolveExpr2(arg)
+	case *ast.Get:
+		r.resolveExpr2(expr.Object)
+	case *ast.Grouping:
+		r.resolveExpr2(expr.Expression)
+	case *ast.Lambda:
+		r.resolveLambda(expr, ast.FN_FUNC)
+	case *ast.Logical:
+		r.resolveExpr2(expr.Left)
+		r.resolveExpr2(expr.Right)
+	case *ast.Set:
+		r.resolveExpr2(expr.Value)
+		r.resolveExpr2(expr.Object)
+	case *ast.Super:
+		if r.curCLS != cls_SUBCLASS {
+			r.reportTok(expr.Keyword, ErrSuperWithNoSuperClass)
+		}
+		if r.curFN == ast.FN_STATIC {
+			r.reportTok(expr.Keyword, ErrSuperInStatic)
+		}
+		r.resolveLocal(expr, expr.Keyword, true)
+	case *ast.This:
+		r.resolveLocal(expr, expr.Keyword, true)
+	case *ast.Unary:
+		r.resolveExpr2(expr.Right)
+	case *ast.Variable:
+		if len(r.scopes) != 0 {
+			state, ok := r.scopes[len(r.scopes)-1][expr.Name.Lexeme]
+			if ok && state.status == vs_DECLARED {
+				r.reportTok(expr.Name, ErrReadLocalInOwnInitializer)
+			}
+		}
+		r.resolveLocal(expr, expr.Name, true)
 	}
 }
 
-func (r *Resolver) exprBinary(expr *ast.Binary) {
-	r.resolveExpr2(expr.Left)
-	r.resolveExpr2(expr.Right)
-}
-
-func (r *Resolver) exprAssign(expr *ast.Assign) {
-	r.resolveExpr2(expr.Value)
-	r.resolveLocal(expr, expr.Name, false)
+func (r *Resolver) resolveStmt2(stmtNode ast.Stmt) {
+	switch stmt := stmtNode.(type) {
+	case *ast.Block:
+		r.stmtBlock(stmt)
+	case *ast.Class:
+		r.stmtClass(stmt)
+	case *ast.Expression:
+		r.resolveExpr2(stmt.Expression)
+	case *ast.Function:
+		r.declare(stmt.Name)
+		r.define(stmt.Name)
+		r.resolveLambda(stmt.Func, ast.FN_FUNC)
+	case *ast.If:
+		r.resolveExpr2(stmt.Condition)
+		r.resolveStmt2(stmt.ThenBranch)
+		if stmt.ElseBranch != nil {
+			r.resolveStmt2(stmt.ElseBranch)
+		}
+	case *ast.Print:
+		r.resolveExpr2(stmt.Expression)
+	case *ast.Control:
+		if stmt.Kind != ast.CNTRL_RETURN {
+			return
+		}
+		if stmt.Value != nil {
+			if r.curFN == ast.FN_INIT {
+				r.reportTok(stmt.Keyword, ErrReturnFromInit)
+			}
+			r.resolveExpr2(stmt.Value)
+		}
+	case *ast.Var:
+		r.declare(stmt.Name)
+		if stmt.Initializer != nil {
+			r.resolveExpr2(stmt.Initializer)
+		}
+		r.define(stmt.Name)
+	case *ast.While:
+		r.resolveExpr2(stmt.Condition)
+		r.resolveStmt2(stmt.Body)
+	}
 }
 
 func (r *Resolver) stmtBlock(stmt *ast.Block) {
@@ -467,18 +413,12 @@ func (r *Resolver) stmtBlock(stmt *ast.Block) {
 	_ = r.ResolveStmts(stmt.Statements)
 }
 
-func (r *Resolver) stmtBreak(_ *ast.Break) {}
-
-func (r *Resolver) classStmt(stmt *ast.Class) {
+func (r *Resolver) stmtClass(stmt *ast.Class) {
 	enclosingCLS := r.curCLS
 	r.curCLS = cls_CLASS
 	r.declare(stmt.Name)
 	r.define(stmt.Name)
 	if stmt.Superclass != nil {
-		// moved to parser
-		/* if stmt.Name.Lexeme == stmt.Superclass.Name.Lexeme {
-			r.reportTok(stmt.Superclass.Name, ErrInheritsSelf)
-		} */
 		r.curCLS = cls_SUBCLASS
 		r.resolveExpr(stmt.Superclass)
 		r.beginScope()
@@ -507,48 +447,4 @@ func (r *Resolver) classStmt(stmt *ast.Class) {
 		}
 		r.resolveLambda(method.Func, decl)
 	}
-}
-
-func (r *Resolver) stmtExpression(stmt *ast.Expression) {
-	r.resolveExpr2(stmt.Expression)
-}
-
-func (r *Resolver) stmtFunction(stmt *ast.Function) {
-	r.declare(stmt.Name)
-	r.define(stmt.Name)
-	r.resolveLambda(stmt.Func, ast.FN_FUNC)
-}
-
-func (r *Resolver) stmtIf(stmt *ast.If) {
-	r.resolveExpr(stmt.Condition)
-	r.resolveStmt(stmt.ThenBranch)
-	if stmt.ElseBranch != nil {
-		r.resolveStmt2(stmt.ElseBranch)
-	}
-}
-
-func (r *Resolver) stmtPrint(stmt *ast.Print) {
-	r.resolveExpr2(stmt.Expression)
-}
-
-func (r *Resolver) stmtReturn(stmt *ast.Return) {
-	if stmt.Value != nil {
-		if r.curFN == ast.FN_INIT {
-			r.reportTok(stmt.Keyword, ErrReturnFromInit)
-		}
-		r.resolveExpr2(stmt.Value)
-	}
-}
-
-func (r *Resolver) stmtVar(stmt *ast.Var) {
-	r.declare(stmt.Name)
-	if stmt.Initializer != nil {
-		r.resolveExpr2(stmt.Initializer)
-	}
-	r.define(stmt.Name)
-}
-
-func (r *Resolver) stmtWhile(stmt *ast.While) {
-	r.resolveExpr2(stmt.Condition)
-	r.resolveStmt2(stmt.Body)
 }

@@ -77,11 +77,10 @@ func (i *Interpreter) lookUpVariable(name *token.Token, expr ast.Expr) (any, err
 	}
 }
 
-func (i *Interpreter) VisitBreakStmt(stmt *ast.Break) (any, error) {
-	return nil, BreakErr
-}
-
-func (i *Interpreter) VisitReturnStmt(stmt *ast.Return) (any, error) {
+func (i *Interpreter) VisitControlStmt(stmt *ast.Control) (any, error) {
+	if stmt.Kind == ast.CNTRL_BREAK {
+		return nil, BreakErr
+	}
 	var val any
 	var err error
 	if stmt.Value != nil {
@@ -329,9 +328,6 @@ func (i *Interpreter) VisitAssignExpr(expr *ast.Assign) (any, error) {
 		if err != nil {
 			return nil, err
 		}
-		// lval, rval := &ast.Literal{Value: tmp}, &ast.Literal{Value: val}
-		// opr := &token.Token{Kind: oprType, Lexeme: "", Literal: nil, Line: expr.Operator.Line}
-		// val, err = i.VisitBinaryExpr(&ast.Binary{Left: lval, Operator: opr, Right: rval})
 		i.tmpBin.Left = &ast.Literal{Value: tmp}
 		i.tmpBin.Right = &ast.Literal{Value: val}
 		i.tmpBin.Operator.Kind = oprType
@@ -544,28 +540,28 @@ func (i *Interpreter) reportRunTimeErr(msg error) {
 	i.CurErr = msg
 }
 
-func (i *Interpreter) evaluate2(expr ast.Expr) (any, error) {
-	switch ex := expr.(type) {
+func (i *Interpreter) evaluate2(exprNode ast.Expr) (any, error) {
+	switch expr := exprNode.(type) {
 	case *ast.Assign:
-		return i.exprAssign(ex)
+		return i.exprAssign(expr)
 	case *ast.Binary:
-		return i.exprBinary(ex)
+		return i.exprBinary(expr)
 	case *ast.Call:
-		return i.exprCall(ex)
+		return i.exprCall(expr)
 	case *ast.Get:
-		return i.exprGet(ex)
+		return i.exprGet(expr)
 	case *ast.Grouping:
-		return i.evaluate2(ex.Expression)
+		return i.evaluate2(expr.Expression)
 	case *ast.Lambda:
-		return NewUserFn("", ex, i.env), nil
+		return NewUserFn("", expr, i.env), nil
 	case *ast.Literal:
-		return ex.Value, nil
+		return expr.Value, nil
 	case *ast.Logical:
-		lhs, err := i.evaluate2(ex.Left)
+		lhs, err := i.evaluate2(expr.Left)
 		if err != nil {
 			return nil, err
 		}
-		if ex.Operator.Kind == token.OR {
+		if expr.Operator.Kind == token.OR {
 			if i.isTruthy(lhs) {
 				return lhs, nil
 			}
@@ -574,70 +570,71 @@ func (i *Interpreter) evaluate2(expr ast.Expr) (any, error) {
 				return lhs, nil
 			}
 		}
-		return i.evaluate2(ex.Right)
+		return i.evaluate2(expr.Right)
 	case *ast.Set:
-		return i.exprSet(ex)
+		return i.exprSet(expr)
 	case *ast.Super:
-		return i.exprSuper(ex)
+		return i.exprSuper(expr)
 	case *ast.This:
-		return i.lookUpVariable(ex.Keyword, ex)
+		return i.lookUpVariable(expr.Keyword, expr)
 	case *ast.Unary:
-		return i.exprUnary(ex)
+		return i.exprUnary(expr)
 	case *ast.Variable:
-		return i.lookUpVariable(ex.Name, ex)
+		return i.lookUpVariable(expr.Name, expr)
 	}
 	return nil, nil
 }
 
-func (i *Interpreter) execute2(stmt ast.Stmt) (any, error) {
+func (i *Interpreter) execute2(stmtNode ast.Stmt) (any, error) {
 	var val any
 	var err error
-	switch s := stmt.(type) {
+	switch stmt := stmtNode.(type) {
 	case *ast.Block:
-		return i.executeBlock2(s.Statements, NewEnv(i.env))
-	case *ast.Break:
-		return nil, BreakErr
+		return i.executeBlock2(stmt.Statements, NewEnv(i.env))
 	case *ast.Class:
-		return i.stmtClass(s)
+		return i.stmtClass(stmt)
 	case *ast.Expression:
-		_, err = i.evaluate2(s.Expression)
+		_, err = i.evaluate2(stmt.Expression)
 		if err != nil {
 			return nil, err
 		}
 		return nil, nil
 	case *ast.Function:
-		name := s.Name.Lexeme
-		fn := NewUserFn(name, s.Func, i.env)
+		name := stmt.Name.Lexeme
+		fn := NewUserFn(name, stmt.Func, i.env)
 		i.env.Define(name, fn)
 		return nil, nil
 	case *ast.If:
-		return i.stmtIf(s)
+		return i.stmtIf(stmt)
 	case *ast.Print:
-		val, err = i.evaluate2(s.Expression)
+		val, err = i.evaluate2(stmt.Expression)
 		if err != nil {
 			return nil, err
 		}
 		fmt.Println(i.stringify(val))
 		return nil, nil
-	case *ast.Return:
-		if s.Value != nil {
-			val, err = i.evaluate2(s.Value)
+	case *ast.Control:
+		if stmt.Kind == ast.CNTRL_BREAK {
+			return nil, BreakErr
+		}
+		if stmt.Value != nil {
+			val, err = i.evaluate2(stmt.Value)
 			if err != nil {
 				return nil, err
 			}
 		}
 		return nil, &ReturnErr{Value: val}
 	case *ast.Var:
-		if s.Initializer != nil {
-			val, err = i.evaluate2(s.Initializer)
+		if stmt.Initializer != nil {
+			val, err = i.evaluate2(stmt.Initializer)
 			if err != nil {
 				return nil, err
 			}
 		}
-		i.env.Define(s.Name.Lexeme, val)
+		i.env.Define(stmt.Name.Lexeme, val)
 		return nil, nil
 	case *ast.While:
-		return i.stmtWhile(s)
+		return i.stmtWhile(stmt)
 	}
 	return nil, nil
 }
@@ -752,9 +749,6 @@ func (i *Interpreter) exprAssign(expr *ast.Assign) (any, error) {
 		if err != nil {
 			return nil, err
 		}
-		/* lval, rval := &ast.Literal{Value: tmp}, &ast.Literal{Value: val}
-		opr := &token.Token{Kind: oprType, Lexeme: "", Literal: nil, Line: expr.Operator.Line}
-		val, err = i.VisitBinaryExpr(&ast.Binary{Left: lval, Operator: opr, Right: rval}) */
 		i.tmpBin.Left = &ast.Literal{Value: tmp}
 		i.tmpBin.Right = &ast.Literal{Value: val}
 		i.tmpBin.Operator.Kind = oprType

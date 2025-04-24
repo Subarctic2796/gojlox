@@ -1,0 +1,59 @@
+var startOg = clock();
+for (var i = 0; i < 2000; i = i + 1) {
+    for (var j = 0; j < 2000; j = j + 1) {
+        if (j == 0) print j;
+        if (j == 100) print j;
+        if (j == 200) print j;
+        if (j == 300) print j;
+        if (j == 400) print j;
+        if (j == 500) print j;
+        if (j == 600) print j;
+        if (j == 700) print j;
+        if (j == 800) print j;
+        if (j == 900) print j;
+        if (j == 1000) print j;
+        if (j == 1100) print j;
+        if (j == 1200) print j;
+        if (j == 1300) print j;
+        if (j == 1400) print j;
+        if (j == 1500) print j;
+        if (j == 1600) print j;
+        if (j == 1700) print j;
+        if (j == 1800) print j;
+        if (j == 1900) print j;
+        if (j == 2000) print j;
+    }
+}
+var switchToNew = clock();
+for (var i = 0; i < 2000; i += 1) {
+    for (var j = 0; j < 2000; j += 1) {
+        if (j == 0) print j;
+        if (j == 100) print j;
+        if (j == 200) print j;
+        if (j == 300) print j;
+        if (j == 400) print j;
+        if (j == 500) print j;
+        if (j == 600) print j;
+        if (j == 700) print j;
+        if (j == 800) print j;
+        if (j == 900) print j;
+        if (j == 1000) print j;
+        if (j == 1100) print j;
+        if (j == 1200) print j;
+        if (j == 1300) print j;
+        if (j == 1400) print j;
+        if (j == 1500) print j;
+        if (j == 1600) print j;
+        if (j == 1700) print j;
+        if (j == 1800) print j;
+        if (j == 1900) print j;
+        if (j == 2000) print j;
+    }
+}
+var stopNew = clock();
+var ogTime = switchToNew - startOg;
+var newTime = stopNew - switchToNew;
+printf("i = i + 1:", ogTime);
+printf("i += 1:   ", newTime);
+print "ogTime - newTime";
+printf("delta", ogTime - newTime);
