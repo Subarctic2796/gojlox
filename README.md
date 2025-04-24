@@ -54,3 +54,15 @@ go run .
   - [ ] add `continue` keyword
 - [ ] remove `genAst.go` script
 - [ ] add native classes (act as modules maybe?)
+- [ ] back port clox variable handling ?
+- [ ] store scope info in ast nodes
+- [ ] add compile step (?)
+- [ ] change LoxFn to be an interface instead, and have native functions be NativeFn and current LoxFn be UserFn structs
+- [ ] create Makefile
+- [ ] pre compute some binary nodes
+- [ ] make real negative numbers
+- [ ] add better error messages
+- [ ] add `else if` branches and `switch` cases
+- [ ] add debugging support, dumping env, etc
+- [ ] add a native dummy function
+- [ ] setup github releases

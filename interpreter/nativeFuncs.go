@@ -6,12 +6,12 @@ import (
 	"time"
 )
 
-type LoxNative interface {
+type NativeFn interface {
 	LoxCallable
 	Name() string
 }
 
-var NativeFns = []LoxNative{
+var NativeFns = []NativeFn{
 	&ClockFn{},
 	&StringFn{},
 	&PrintFn{},

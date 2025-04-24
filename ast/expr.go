@@ -167,7 +167,6 @@ func (expr *Logical) String() string {
 type Set struct {
 	Object Expr
 	Name   *token.Token
-	Kind   *token.Token
 	Value  Expr
 }
 

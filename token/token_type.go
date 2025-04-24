@@ -1,5 +1,6 @@
 package token
 
+//go:generate go tool stringer -type=TokenType
 type TokenType int
 
 const (

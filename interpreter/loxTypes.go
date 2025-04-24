@@ -1,10 +1,8 @@
 package interpreter
 
 import (
-	"errors"
 	"fmt"
 
-	"github.com/Subarctic2796/gojlox/ast"
 	"github.com/Subarctic2796/gojlox/token"
 )
 
@@ -13,71 +11,17 @@ type LoxCallable interface {
 	Arity() int
 }
 
-type LoxFn struct {
-	Name    string
-	Func    *ast.Lambda
-	Closure *Env
-}
-
-func NewLoxFn(name string, fn *ast.Lambda, closure *Env) *LoxFn {
-	return &LoxFn{name, fn, closure}
-}
-
-func (fn *LoxFn) Bind(inst *LoxInstance) *LoxFn {
-	env := NewEnv(fn.Closure)
-	env.Define("this", inst)
-	return &LoxFn{fn.Name, fn.Func, env}
-}
-
-func (fn *LoxFn) Call(intprt *Interpreter, args []any) (any, error) {
-	env := NewEnv(fn.Closure)
-	for i, param := range fn.Func.Params {
-		env.Define(param.Lexeme, args[i])
-	}
-	var err error
-	if !intprt.useV2 {
-		_, err = intprt.executeBlock(fn.Func.Body, env)
-	} else {
-		_, err = intprt.executeBlock2(fn.Func.Body, env)
-	}
-	if err != nil {
-		retVal := &ReturnErr{}
-		if errors.As(err, &retVal) {
-			if fn.Func.Kind == ast.FN_INIT {
-				return fn.Closure.GetAt(0, "this"), nil
-			}
-			return retVal.Value, nil
-		}
-		return nil, err
-	}
-	if fn.Func.Kind == ast.FN_INIT {
-		return fn.Closure.GetAt(0, "this"), nil
-	}
-	return nil, nil
-}
-
-func (fn *LoxFn) Arity() int {
-	return len(fn.Func.Params)
-}
-
-func (fn *LoxFn) String() string {
-	if len(fn.Name) == 0 {
-		return "<lambda>"
-	}
-	return fmt.Sprintf("<fn %s>", fn.Name)
-}
-
 type LoxClass struct {
 	Name       string
 	SuperClass *LoxClass
-	Methods    map[string]*LoxFn
+	Methods    map[string]*UserFn
 }
 
-func NewLoxClass(name string, superclass *LoxClass, methods map[string]*LoxFn) *LoxClass {
+func NewLoxClass(name string, superclass *LoxClass, methods map[string]*UserFn) *LoxClass {
 	return &LoxClass{name, superclass, methods}
 }
 
-func (lc *LoxClass) FindMethod(name string) *LoxFn {
+func (lc *LoxClass) FindMethod(name string) *UserFn {
 	if val, ok := lc.Methods[name]; ok {
 		return val
 	}

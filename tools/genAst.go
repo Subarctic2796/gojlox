@@ -23,7 +23,7 @@ func main() {
 		"Grouping : Expression Expr",
 		"Literal  : Value any",
 		"Logical  : Left Expr, Operator *token.Token, Right Expr",
-		"Set      : Object Expr, Name *token.Token, Kind *token.Token, Value Expr",
+		"Set      : Object Expr, Name *token.Token, Value Expr",
 		"Super    : Keyword *token.Token, Method *token.Token",
 		"This     : Keyword *token.Token",
 		"Unary    : Operator *token.Token, Right Expr",
@@ -51,6 +51,7 @@ func defineAst(path, baseName string, types []string) {
 	if err != nil {
 		panic(err)
 	}
+
 	classes := make(map[string][]string)
 	for _, t := range types {
 		ls := strings.Split(t, ":")
@@ -82,7 +83,7 @@ func defineAst(path, baseName string, types []string) {
 }
 
 func defineTypes(path string, baseName string) {
-	tmpl, err := template.New("astTypes").Parse(TYPES_TMPL)
+	tmpl, err := template.New("ast_common").Parse(TYPES_TMPL)
 	if err != nil {
 		panic(err)
 	}
@@ -129,10 +130,12 @@ func ({{$.bn}} *{{$name}}) Accept(visitor {{$.BN}}Visitor) (any, error) {
 
 const TYPES_TMPL = `package ast
 
+//go:generate go tool stringer -type=FnType
 type FnType int
 
 const (
 	FN_NONE FnType = iota
+	FN_NATIVE
 	FN_LAMBDA
 	FN_FUNC
 	FN_INIT

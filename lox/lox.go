@@ -82,5 +82,6 @@ func (l *Lox) Run(src string, intprt *interpreter.Interpreter) error {
 		l.HadRunTimeErr = true
 		return err
 	}
+
 	return nil
 }

@@ -113,9 +113,9 @@ func (i *Interpreter) VisitClassStmt(stmt *ast.Class) (any, error) {
 		i.env = NewEnv(i.env)
 		i.env.Define("super", supercls)
 	}
-	methods := make(map[string]*LoxFn)
+	methods := make(map[string]*UserFn)
 	for _, method := range stmt.Methods {
-		methods[method.Name.Lexeme] = NewLoxFn(method.Name.Lexeme, method.Func, i.env)
+		methods[method.Name.Lexeme] = NewUserFn(method.Name.Lexeme, method.Func, i.env)
 	}
 	scls, _ := supercls.(*LoxClass)
 	klass := NewLoxClass(stmt.Name.Lexeme, scls, methods)
@@ -131,13 +131,13 @@ func (i *Interpreter) VisitClassStmt(stmt *ast.Class) (any, error) {
 
 func (i *Interpreter) VisitFunctionStmt(stmt *ast.Function) (any, error) {
 	name := stmt.Name.Lexeme
-	fn := NewLoxFn(name, stmt.Func, i.env)
+	fn := NewUserFn(name, stmt.Func, i.env)
 	i.env.Define(stmt.Name.Lexeme, fn)
 	return nil, nil
 }
 
 func (i *Interpreter) VisitLambdaExpr(expr *ast.Lambda) (any, error) {
-	return NewLoxFn("", expr, i.env), nil
+	return NewUserFn("", expr, i.env), nil
 }
 
 func (i *Interpreter) VisitSuperExpr(expr *ast.Super) (any, error) {
@@ -555,47 +555,87 @@ func (i *Interpreter) evaluate2(expr ast.Expr) (any, error) {
 	case *ast.Get:
 		return i.exprGet(ex)
 	case *ast.Grouping:
-		return i.exprGrouping(ex)
+		return i.evaluate2(ex.Expression)
 	case *ast.Lambda:
-		return i.exprLambda(ex)
+		return NewUserFn("", ex, i.env), nil
 	case *ast.Literal:
-		return i.exprLiteral(ex)
+		return ex.Value, nil
 	case *ast.Logical:
-		return i.exprLogical(ex)
+		lhs, err := i.evaluate2(ex.Left)
+		if err != nil {
+			return nil, err
+		}
+		if ex.Operator.Kind == token.OR {
+			if i.isTruthy(lhs) {
+				return lhs, nil
+			}
+		} else {
+			if !i.isTruthy(lhs) {
+				return lhs, nil
+			}
+		}
+		return i.evaluate2(ex.Right)
 	case *ast.Set:
 		return i.exprSet(ex)
 	case *ast.Super:
 		return i.exprSuper(ex)
 	case *ast.This:
-		return i.exprThis(ex)
+		return i.lookUpVariable(ex.Keyword, ex)
 	case *ast.Unary:
 		return i.exprUnary(ex)
 	case *ast.Variable:
-		return i.exprVariable(ex)
+		return i.lookUpVariable(ex.Name, ex)
 	}
 	return nil, nil
 }
 
 func (i *Interpreter) execute2(stmt ast.Stmt) (any, error) {
+	var val any
+	var err error
 	switch s := stmt.(type) {
 	case *ast.Block:
-		return i.stmtBlock(s)
+		return i.executeBlock2(s.Statements, NewEnv(i.env))
 	case *ast.Break:
-		return i.stmtBreak(s)
+		return nil, BreakErr
 	case *ast.Class:
-		return i.classStmt(s)
+		return i.stmtClass(s)
 	case *ast.Expression:
-		return i.stmtExpression(s)
+		_, err = i.evaluate2(s.Expression)
+		if err != nil {
+			return nil, err
+		}
+		return nil, nil
 	case *ast.Function:
-		return i.stmtFunction(s)
+		name := s.Name.Lexeme
+		fn := NewUserFn(name, s.Func, i.env)
+		i.env.Define(name, fn)
+		return nil, nil
 	case *ast.If:
 		return i.stmtIf(s)
 	case *ast.Print:
-		return i.stmtPrint(s)
+		val, err = i.evaluate2(s.Expression)
+		if err != nil {
+			return nil, err
+		}
+		fmt.Println(i.stringify(val))
+		return nil, nil
 	case *ast.Return:
-		return i.stmtReturn(s)
+		if s.Value != nil {
+			val, err = i.evaluate2(s.Value)
+			if err != nil {
+				return nil, err
+			}
+		}
+		return nil, &ReturnErr{Value: val}
 	case *ast.Var:
-		return i.stmtVar(s)
+		if s.Initializer != nil {
+			val, err = i.evaluate2(s.Initializer)
+			if err != nil {
+				return nil, err
+			}
+		}
+		i.env.Define(s.Name.Lexeme, val)
+		return nil, nil
 	case *ast.While:
 		return i.stmtWhile(s)
 	}
@@ -623,40 +663,6 @@ func (i *Interpreter) stmtWhile(stmt *ast.While) (any, error) {
 	return nil, nil
 }
 
-func (i *Interpreter) stmtVar(stmt *ast.Var) (any, error) {
-	var val any
-	var err error
-	if stmt.Initializer != nil {
-		val, err = i.evaluate2(stmt.Initializer)
-		if err != nil {
-			return nil, err
-		}
-	}
-	i.env.Define(stmt.Name.Lexeme, val)
-	return nil, nil
-}
-
-func (i *Interpreter) stmtReturn(stmt *ast.Return) (any, error) {
-	var val any
-	var err error
-	if stmt.Value != nil {
-		val, err = i.evaluate2(stmt.Value)
-		if err != nil {
-			return nil, err
-		}
-	}
-	return nil, &ReturnErr{Value: val}
-}
-
-func (i *Interpreter) stmtPrint(stmt *ast.Print) (any, error) {
-	val, err := i.evaluate2(stmt.Expression)
-	if err != nil {
-		return nil, err
-	}
-	fmt.Println(i.stringify(val))
-	return nil, nil
-}
-
 func (i *Interpreter) stmtIf(stmt *ast.If) (any, error) {
 	cond, err := i.evaluate2(stmt.Condition)
 	if err != nil {
@@ -676,26 +682,11 @@ func (i *Interpreter) stmtIf(stmt *ast.If) (any, error) {
 	return nil, nil
 }
 
-func (i *Interpreter) stmtFunction(stmt *ast.Function) (any, error) {
-	name := stmt.Name.Lexeme
-	fn := NewLoxFn(name, stmt.Func, i.env)
-	i.env.Define(name, fn)
-	return nil, nil
-}
-
-func (i *Interpreter) stmtExpression(stmt *ast.Expression) (any, error) {
-	_, err := i.evaluate2(stmt.Expression)
-	if err != nil {
-		return nil, err
-	}
-	return nil, nil
-}
-
-func (i *Interpreter) classStmt(stmt *ast.Class) (any, error) {
+func (i *Interpreter) stmtClass(stmt *ast.Class) (any, error) {
 	var supercls any = nil
 	var err error
 	if stmt.Superclass != nil {
-		supercls, err := i.exprVariable(stmt.Superclass)
+		supercls, err := i.lookUpVariable(stmt.Superclass.Name, stmt.Superclass)
 		if err != nil {
 			return nil, err
 		}
@@ -711,9 +702,9 @@ func (i *Interpreter) classStmt(stmt *ast.Class) (any, error) {
 		i.env = NewEnv(i.env)
 		i.env.Define("super", supercls)
 	}
-	methods := make(map[string]*LoxFn)
+	methods := make(map[string]*UserFn)
 	for _, method := range stmt.Methods {
-		methods[method.Name.Lexeme] = NewLoxFn(method.Name.Lexeme, method.Func, i.env)
+		methods[method.Name.Lexeme] = NewUserFn(method.Name.Lexeme, method.Func, i.env)
 	}
 	scls, _ := supercls.(*LoxClass)
 	klass := NewLoxClass(stmt.Name.Lexeme, scls, methods)
@@ -725,14 +716,6 @@ func (i *Interpreter) classStmt(stmt *ast.Class) (any, error) {
 		return nil, err
 	}
 	return nil, nil
-}
-
-func (i *Interpreter) stmtBreak(_ *ast.Break) (any, error) {
-	return nil, BreakErr
-}
-
-func (i *Interpreter) stmtBlock(stmt *ast.Block) (any, error) {
-	return i.executeBlock2(stmt.Statements, NewEnv(i.env))
 }
 
 func (i *Interpreter) executeBlock2(stmts []ast.Stmt, env *Env) (any, error) {
@@ -932,35 +915,6 @@ func (i *Interpreter) exprGet(expr *ast.Get) (any, error) {
 	}
 }
 
-func (i *Interpreter) exprGrouping(expr *ast.Grouping) (any, error) {
-	return i.evaluate2(expr.Expression)
-}
-
-func (i *Interpreter) exprLambda(expr *ast.Lambda) (any, error) {
-	return NewLoxFn("", expr, i.env), nil
-}
-
-func (i *Interpreter) exprLiteral(expr *ast.Literal) (any, error) {
-	return expr.Value, nil
-}
-
-func (i *Interpreter) exprLogical(expr *ast.Logical) (any, error) {
-	lhs, err := i.evaluate2(expr.Left)
-	if err != nil {
-		return nil, err
-	}
-	if expr.Operator.Kind == token.OR {
-		if i.isTruthy(lhs) {
-			return lhs, nil
-		}
-	} else {
-		if !i.isTruthy(lhs) {
-			return lhs, nil
-		}
-	}
-	return i.evaluate2(expr.Right)
-}
-
 func (i *Interpreter) exprSet(expr *ast.Set) (any, error) {
 	obj, err := i.evaluate2(expr.Object)
 	if err != nil {
@@ -995,10 +949,6 @@ func (i *Interpreter) exprSuper(expr *ast.Super) (any, error) {
 	return method.Bind(obj), nil
 }
 
-func (i *Interpreter) exprThis(expr *ast.This) (any, error) {
-	return i.lookUpVariable(expr.Keyword, expr)
-}
-
 func (i *Interpreter) exprUnary(expr *ast.Unary) (any, error) {
 	rhs, err := i.evaluate2(expr.Right)
 	if err != nil {
@@ -1016,8 +966,4 @@ func (i *Interpreter) exprUnary(expr *ast.Unary) (any, error) {
 	}
 	// unreachable
 	return nil, nil
-}
-
-func (i *Interpreter) exprVariable(expr *ast.Variable) (any, error) {
-	return i.lookUpVariable(expr.Name, expr)
 }
