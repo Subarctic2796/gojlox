@@ -1,0 +1,11 @@
+class A {
+    static sfn1() {
+        print "static 1";
+    }
+    static sfn2() {
+        this.sfn1();
+        print "static 2";
+    }
+}
+
+A.sfn2();

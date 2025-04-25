@@ -33,6 +33,9 @@ go run .
 # Currently working on
 - [ ] move away from visitor pattern, and just use straight type checks
 - [ ] add pretty printer for ast
+- [ ] make `this.fn()` work if the surrounding func and `fn` are both static
+- [ ] create better internal object/type system
+- [ ] make `ast.Literal` node a generic as it only ever has `strings, floats, nils, and bools`
 
 # Current plans
 - [ ] add support for expressions in the repl

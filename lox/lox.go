@@ -14,12 +14,10 @@ import (
 type Lox struct {
 	HadErr        bool
 	HadRunTimeErr bool
-	useV2         bool
 }
 
 func NewLox() *Lox {
-	return &Lox{false, false, true}
-	// return &Lox{false, false, false}
+	return &Lox{false, false}
 }
 
 func (l *Lox) RunFile(path string) error {
@@ -28,7 +26,7 @@ func (l *Lox) RunFile(path string) error {
 		fmt.Fprintln(os.Stderr, err)
 		return err
 	}
-	intprt := interpreter.NewInterpreter(l.useV2)
+	intprt := interpreter.NewInterpreter()
 	err = l.Run(string(f), intprt)
 	if err != nil {
 		if l.HadErr {
@@ -44,7 +42,7 @@ func (l *Lox) RunFile(path string) error {
 
 func (l *Lox) RunPrompt() error {
 	scnr := bufio.NewScanner(os.Stdin)
-	intprt := interpreter.NewInterpreter(l.useV2)
+	intprt := interpreter.NewInterpreter()
 	for {
 		fmt.Print("> ")
 		if !scnr.Scan() {
@@ -71,7 +69,7 @@ func (l *Lox) Run(src string, intprt *interpreter.Interpreter) error {
 		return err
 	}
 
-	rslvr := resolver.NewResolver(intprt, l.useV2)
+	rslvr := resolver.NewResolver(intprt)
 	err = rslvr.ResolveStmts(stmts)
 	if err != nil {
 		l.HadErr = true

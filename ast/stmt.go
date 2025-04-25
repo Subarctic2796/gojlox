@@ -8,28 +8,11 @@ import (
 )
 
 type Stmt interface {
-	Accept(visitor StmtVisitor) (any, error)
 	String() string
-}
-
-type StmtVisitor interface {
-	VisitBlockStmt(stmt *Block) (any, error)
-	VisitClassStmt(stmt *Class) (any, error)
-	VisitExpressionStmt(stmt *Expression) (any, error)
-	VisitFunctionStmt(stmt *Function) (any, error)
-	VisitIfStmt(stmt *If) (any, error)
-	VisitPrintStmt(stmt *Print) (any, error)
-	VisitControlStmt(stmt *Control) (any, error)
-	VisitVarStmt(stmt *Var) (any, error)
-	VisitWhileStmt(stmt *While) (any, error)
 }
 
 type Block struct {
 	Statements []Stmt
-}
-
-func (stmt *Block) Accept(visitor StmtVisitor) (any, error) {
-	return visitor.VisitBlockStmt(stmt)
 }
 
 func (stmt *Block) String() string {
@@ -46,10 +29,6 @@ type Class struct {
 	Name       *token.Token
 	Superclass *Variable
 	Methods    []*Function
-}
-
-func (stmt *Class) Accept(visitor StmtVisitor) (any, error) {
-	return visitor.VisitClassStmt(stmt)
 }
 
 func (stmt *Class) String() string {
@@ -69,10 +48,6 @@ type Expression struct {
 	Expression Expr
 }
 
-func (stmt *Expression) Accept(visitor StmtVisitor) (any, error) {
-	return visitor.VisitExpressionStmt(stmt)
-}
-
 func (stmt *Expression) String() string {
 	return fmt.Sprintf("(; %s)", stmt.Expression)
 }
@@ -85,10 +60,6 @@ type Function struct {
 	Kind   FnType */
 }
 
-func (stmt *Function) Accept(visitor StmtVisitor) (any, error) {
-	return visitor.VisitFunctionStmt(stmt)
-}
-
 func (stmt *Function) String() string {
 	return fmt.Sprintf("(fun %s(%s", stmt.Name.Lexeme, stmt.Func)
 }
@@ -97,10 +68,6 @@ type If struct {
 	Condition  Expr
 	ThenBranch Stmt
 	ElseBranch Stmt
-}
-
-func (stmt *If) Accept(visitor StmtVisitor) (any, error) {
-	return visitor.VisitIfStmt(stmt)
 }
 
 func (stmt *If) String() string {
@@ -114,10 +81,6 @@ type Print struct {
 	Expression Expr
 }
 
-func (stmt *Print) Accept(visitor StmtVisitor) (any, error) {
-	return visitor.VisitPrintStmt(stmt)
-}
-
 func (stmt *Print) String() string {
 	return fmt.Sprintf("(print %s", stmt.Expression)
 }
@@ -126,10 +89,6 @@ type Control struct {
 	Kind    ControlType
 	Keyword *token.Token
 	Value   Expr
-}
-
-func (stmt *Control) Accept(visitor StmtVisitor) (any, error) {
-	return visitor.VisitControlStmt(stmt)
 }
 
 func (stmt *Control) String() string {
@@ -151,10 +110,6 @@ type Var struct {
 	Initializer Expr
 }
 
-func (stmt *Var) Accept(visitor StmtVisitor) (any, error) {
-	return visitor.VisitVarStmt(stmt)
-}
-
 func (stmt *Var) String() string {
 	sname := stmt.Name.Lexeme
 	if stmt.Initializer == nil {
@@ -166,10 +121,6 @@ func (stmt *Var) String() string {
 type While struct {
 	Condition Expr
 	Body      Stmt
-}
-
-func (stmt *While) Accept(visitor StmtVisitor) (any, error) {
-	return visitor.VisitWhileStmt(stmt)
 }
 
 func (stmt *While) String() string {

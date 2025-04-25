@@ -8,34 +8,13 @@ import (
 )
 
 type Expr interface {
-	Accept(visitor ExprVisitor) (any, error)
 	String() string
-}
-
-type ExprVisitor interface {
-	VisitAssignExpr(expr *Assign) (any, error)
-	VisitBinaryExpr(expr *Binary) (any, error)
-	VisitCallExpr(expr *Call) (any, error)
-	VisitGetExpr(expr *Get) (any, error)
-	VisitGroupingExpr(expr *Grouping) (any, error)
-	VisitLambdaExpr(expr *Lambda) (any, error)
-	VisitLiteralExpr(expr *Literal) (any, error)
-	VisitLogicalExpr(expr *Logical) (any, error)
-	VisitSetExpr(expr *Set) (any, error)
-	VisitSuperExpr(expr *Super) (any, error)
-	VisitThisExpr(expr *This) (any, error)
-	VisitUnaryExpr(expr *Unary) (any, error)
-	VisitVariableExpr(expr *Variable) (any, error)
 }
 
 type Assign struct {
 	Name     *token.Token
 	Operator *token.Token
 	Value    Expr
-}
-
-func (expr *Assign) Accept(visitor ExprVisitor) (any, error) {
-	return visitor.VisitAssignExpr(expr)
 }
 
 func (expr *Assign) String() string {
@@ -50,10 +29,6 @@ type Binary struct {
 	Right    Expr
 }
 
-func (expr *Binary) Accept(visitor ExprVisitor) (any, error) {
-	return visitor.VisitBinaryExpr(expr)
-}
-
 func (expr *Binary) String() string {
 	sopr := expr.Operator.Lexeme
 	return fmt.Sprintf("(%s %s %s)", sopr, expr.Left, expr.Right)
@@ -63,10 +38,6 @@ type Call struct {
 	Callee    Expr
 	Paren     *token.Token
 	Arguments []Expr
-}
-
-func (expr *Call) Accept(visitor ExprVisitor) (any, error) {
-	return visitor.VisitCallExpr(expr)
 }
 
 func (expr *Call) String() string {
@@ -83,20 +54,12 @@ type Get struct {
 	Name   *token.Token
 }
 
-func (expr *Get) Accept(visitor ExprVisitor) (any, error) {
-	return visitor.VisitGetExpr(expr)
-}
-
 func (expr *Get) String() string {
 	return fmt.Sprintf("(. %s %s)", expr.Object, expr.Name.Lexeme)
 }
 
 type Grouping struct {
 	Expression Expr
-}
-
-func (expr *Grouping) Accept(visitor ExprVisitor) (any, error) {
-	return visitor.VisitGroupingExpr(expr)
 }
 
 func (expr *Grouping) String() string {
@@ -108,10 +71,6 @@ type Lambda struct {
 	Body   []Stmt
 	Kind   FnType
 	// Body *Function
-}
-
-func (expr *Lambda) Accept(visitor ExprVisitor) (any, error) {
-	return visitor.VisitLambdaExpr(expr)
 }
 
 func (expr *Lambda) String() string {
@@ -138,10 +97,6 @@ type Literal struct {
 	Value any
 }
 
-func (expr *Literal) Accept(visitor ExprVisitor) (any, error) {
-	return visitor.VisitLiteralExpr(expr)
-}
-
 func (expr *Literal) String() string {
 	if expr.Value == nil {
 		return "nil"
@@ -155,10 +110,6 @@ type Logical struct {
 	Right    Expr
 }
 
-func (expr *Logical) Accept(visitor ExprVisitor) (any, error) {
-	return visitor.VisitLogicalExpr(expr)
-}
-
 func (expr *Logical) String() string {
 	sopr := expr.Operator.Lexeme
 	return fmt.Sprintf("(%s %s %s)", sopr, expr.Left, expr.Right)
@@ -168,10 +119,6 @@ type Set struct {
 	Object Expr
 	Name   *token.Token
 	Value  Expr
-}
-
-func (expr *Set) Accept(visitor ExprVisitor) (any, error) {
-	return visitor.VisitSetExpr(expr)
 }
 
 func (expr *Set) String() string {
@@ -184,20 +131,12 @@ type Super struct {
 	Method  *token.Token
 }
 
-func (expr *Super) Accept(visitor ExprVisitor) (any, error) {
-	return visitor.VisitSuperExpr(expr)
-}
-
 func (expr *Super) String() string {
 	return fmt.Sprintf("(super %s", expr.Method.Lexeme)
 }
 
 type This struct {
 	Keyword *token.Token
-}
-
-func (expr *This) Accept(visitor ExprVisitor) (any, error) {
-	return visitor.VisitThisExpr(expr)
 }
 
 func (expr *This) String() string {
@@ -209,20 +148,12 @@ type Unary struct {
 	Right    Expr
 }
 
-func (expr *Unary) Accept(visitor ExprVisitor) (any, error) {
-	return visitor.VisitUnaryExpr(expr)
-}
-
 func (expr *Unary) String() string {
 	return fmt.Sprintf("(%s %s)", expr.Operator.Lexeme, expr.Right)
 }
 
 type Variable struct {
 	Name *token.Token
-}
-
-func (expr *Variable) Accept(visitor ExprVisitor) (any, error) {
-	return visitor.VisitVariableExpr(expr)
 }
 
 func (expr *Variable) String() string {

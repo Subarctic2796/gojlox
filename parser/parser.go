@@ -10,10 +10,19 @@ import (
 )
 
 const (
-	ThisNotInClass  = "Can't use 'this' outside of a class"
-	SuperNotInClass = "Can't use 'super' outside of a class"
-	ReturnTopLevel  = "Can't return from top-level code"
-	InheritsSelf    = "A class can't inherit from itself"
+	AlreadyInScope       = "Already a variable with this name in this scope"
+	LocalInitializesSelf = "Can't read local variable in its own initializer"
+	LocalNotRead         = "Local variable is not used"
+
+	ReturnTopLevel = "Can't return from top-level code"
+	ReturnFromInit = "Can't return a value from an initializer"
+
+	ThisNotInClass     = "Can't use 'this' outside of a class"
+	InitIsStatic       = "Can't use 'init' as a static function"
+	SuperNotInClass    = "Can't use 'super' outside of a class"
+	SuperNotInSubClass = "Can't use 'super' in a class with no superclass"
+	InheritsSelf       = "A class can't inherit from itself"
+	SuperInStatic      = "Can't use 'super' in a static method"
 )
 
 type clsType int
@@ -87,8 +96,9 @@ func (p *Parser) declaration() (ast.Stmt, error) {
 }
 
 func (p *Parser) classDeclaration() (ast.Stmt, error) {
+	prvCLS := p.curClass
 	p.curClass = cls_CLASS
-	defer func() { p.curClass = cls_NONE }()
+	defer func() { p.curClass = prvCLS }()
 	name, err := p.consume(token.IDENTIFIER, "Expect class name")
 	if err != nil {
 		return nil, err
@@ -103,6 +113,7 @@ func (p *Parser) classDeclaration() (ast.Stmt, error) {
 		if supercls.Name.Lexeme == name.Lexeme {
 			return nil, p.parseErr(supercls.Name, InheritsSelf)
 		}
+		p.curClass = cls_SUBCLASS
 	}
 	_, err = p.consume(token.LEFT_BRACE, "Expect '{' before class body")
 	if err != nil {
@@ -632,6 +643,8 @@ func (p *Parser) primary() (ast.Expr, error) {
 
 	if p.match(token.SUPER) {
 		if p.curClass == cls_NONE {
+			return nil, p.parseErr(p.previous(), SuperNotInClass)
+		} else if p.curClass != cls_SUBCLASS {
 			return nil, p.parseErr(p.previous(), SuperNotInClass)
 		}
 		keyword := p.previous()

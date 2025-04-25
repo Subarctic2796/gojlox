@@ -1,7 +1,6 @@
 package interpreter
 
 import (
-	"errors"
 	"fmt"
 
 	"github.com/Subarctic2796/gojlox/ast"
@@ -32,21 +31,17 @@ func (fn *UserFn) Call(intprt *Interpreter, args []any) (any, error) {
 	for i, param := range fn.Func.Params {
 		env.Define(param.Lexeme, args[i])
 	}
-	var err error
-	if !intprt.useV2 {
-		_, err = intprt.executeBlock(fn.Func.Body, env)
-	} else {
-		_, err = intprt.executeBlock2(fn.Func.Body, env)
-	}
+	_, err := intprt.executeBlock(fn.Func.Body, env)
 	if err != nil {
-		retVal := &ReturnErr{}
-		if errors.As(err, &retVal) {
+		switch e := err.(type) {
+		case *ReturnErr:
 			if fn.Func.Kind == ast.FN_INIT {
 				return fn.Closure.GetAt(0, "this"), nil
 			}
-			return retVal.Value, nil
+			return e.Value, nil
+		default:
+			return nil, err
 		}
-		return nil, err
 	}
 	if fn.Func.Kind == ast.FN_INIT {
 		return fn.Closure.GetAt(0, "this"), nil
