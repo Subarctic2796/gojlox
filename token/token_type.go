@@ -7,10 +7,12 @@ const (
 	NONE TokenType = iota
 
 	// Single-character tokens.
-	LEFT_PAREN
-	RIGHT_PAREN
-	LEFT_BRACE
-	RIGHT_BRACE
+	LPAREN
+	RPAREN
+	LBRACE
+	RBRACE
+	LSQR
+	RSQR
 
 	COMMA
 	DOT
@@ -20,28 +22,31 @@ const (
 
 	// One or two character tokens.
 	BANG
-	BANG_EQUAL
+	NEQ
 
-	EQUAL
-	EQUAL_EQUAL
+	EQ
+	EQ_EQ
 
-	GREATER
-	GREATER_EQUAL
+	GT
+	GT_EQ
 
-	LESS
-	LESS_EQUAL
+	LT
+	LT_EQ
 
 	PLUS
-	PLUS_EQUAL
+	PLUS_EQ
 
 	MINUS
-	MINUS_EQUAL
+	MINUS_EQ
 
 	SLASH
-	SLASH_EQUAL
+	SLASH_EQ
 
 	STAR
-	STAR_EQUAL
+	STAR_EQ
+
+	PERCENT
+	PERCENT_EQ
 
 	// Literals.
 	IDENTIFIER

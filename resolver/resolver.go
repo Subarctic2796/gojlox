@@ -23,19 +23,9 @@ const (
 	vs_IMPLICIT
 )
 
-type clsType int
-
-const (
-	cls_NONE clsType = iota
-	cls_CLASS
-	cls_SUBCLASS
-)
-
 type Resolver struct {
 	intprt *interpreter.Interpreter
 	scopes []map[string]*varInfo
-	curFN  ast.FnType
-	curCLS clsType
 	curErr error
 }
 
@@ -43,8 +33,6 @@ func NewResolver(intptr *interpreter.Interpreter) *Resolver {
 	return &Resolver{
 		intptr,
 		make([]map[string]*varInfo, 0),
-		ast.FN_NONE,
-		cls_NONE,
 		nil,
 	}
 }
@@ -68,11 +56,8 @@ func (r *Resolver) resolveLocal(expr ast.Expr, name *token.Token, isRead bool) {
 	}
 }
 
-func (r *Resolver) resolveLambda(fn *ast.Lambda, kind ast.FnType) {
-	enclosingFun := r.curFN
-	r.curFN = kind
+func (r *Resolver) resolveLambda(fn *ast.Lambda) {
 	r.beginScope()
-	defer func() { r.endScope(); r.curFN = enclosingFun }()
 	for _, param := range fn.Params {
 		r.declare(param)
 		r.define(param)
@@ -138,7 +123,7 @@ func (r *Resolver) resolveExpr(exprNode ast.Expr) {
 	case *ast.Grouping:
 		r.resolveExpr(expr.Expression)
 	case *ast.Lambda:
-		r.resolveLambda(expr, ast.FN_FUNC)
+		r.resolveLambda(expr)
 	case *ast.Logical:
 		r.resolveExpr(expr.Left)
 		r.resolveExpr(expr.Right)
@@ -146,9 +131,6 @@ func (r *Resolver) resolveExpr(exprNode ast.Expr) {
 		r.resolveExpr(expr.Value)
 		r.resolveExpr(expr.Object)
 	case *ast.Super:
-		if r.curFN == ast.FN_STATIC {
-			r.reportTok(expr.Keyword, ErrSuperInStatic)
-		}
 		r.resolveLocal(expr, expr.Keyword, true)
 	case *ast.This:
 		r.resolveLocal(expr, expr.Keyword, true)
@@ -176,7 +158,7 @@ func (r *Resolver) resolveStmt(stmtNode ast.Stmt) {
 	case *ast.Function:
 		r.declare(stmt.Name)
 		r.define(stmt.Name)
-		r.resolveLambda(stmt.Func, ast.FN_FUNC)
+		r.resolveLambda(stmt.Func)
 	case *ast.If:
 		r.resolveExpr(stmt.Condition)
 		r.resolveStmt(stmt.ThenBranch)
@@ -190,9 +172,6 @@ func (r *Resolver) resolveStmt(stmtNode ast.Stmt) {
 			return
 		}
 		if stmt.Value != nil {
-			if r.curFN == ast.FN_INIT {
-				r.reportTok(stmt.Keyword, ErrReturnFromInit)
-			}
 			r.resolveExpr(stmt.Value)
 		}
 	case *ast.Var:
@@ -214,12 +193,9 @@ func (r *Resolver) stmtBlock(stmt *ast.Block) {
 }
 
 func (r *Resolver) stmtClass(stmt *ast.Class) {
-	enclosingCLS := r.curCLS
-	r.curCLS = cls_CLASS
 	r.declare(stmt.Name)
 	r.define(stmt.Name)
 	if stmt.Superclass != nil {
-		r.curCLS = cls_SUBCLASS
 		r.resolveExpr(stmt.Superclass)
 		r.beginScope()
 		r.scopes[len(r.scopes)-1]["super"] = &varInfo{stmt.Superclass.Name, vs_IMPLICIT}
@@ -227,24 +203,12 @@ func (r *Resolver) stmtClass(stmt *ast.Class) {
 	r.beginScope()
 	defer func() {
 		r.endScope()
-		r.curCLS = enclosingCLS
 		if stmt.Superclass != nil {
 			r.endScope()
 		}
 	}()
 	r.scopes[len(r.scopes)-1]["this"] = &varInfo{stmt.Name, vs_IMPLICIT}
 	for _, method := range stmt.Methods {
-		decl := ast.FN_METHOD
-		if method.Func.Kind == ast.FN_STATIC {
-			decl = ast.FN_STATIC
-		}
-		if method.Name.Lexeme == "init" {
-			if method.Func.Kind == ast.FN_STATIC {
-				r.reportTok(method.Name, ErrInitIsStatic)
-			}
-			method.Func.Kind = ast.FN_INIT
-			decl = ast.FN_INIT
-		}
-		r.resolveLambda(method.Func, decl)
+		r.resolveLambda(method.Func)
 	}
 }

@@ -11,6 +11,20 @@ type Expr interface {
 	String() string
 }
 
+type ArrayLiteral struct {
+	Elements []Expr
+}
+
+func (expr *ArrayLiteral) String() string {
+	var sb strings.Builder
+	sb.WriteString("([")
+	for _, elm := range expr.Elements {
+		sb.WriteString(fmt.Sprintf("%s, ", elm.String()))
+	}
+	sb.WriteString("])")
+	return sb.String()
+}
+
 type Assign struct {
 	Name     *token.Token
 	Operator *token.Token
@@ -20,7 +34,7 @@ type Assign struct {
 func (expr *Assign) String() string {
 	sopr := expr.Operator.Lexeme
 	sname := expr.Name.Lexeme
-	return fmt.Sprintf("(%s %s %s", sopr, sname, expr.Value)
+	return fmt.Sprintf("(%s %s %s)", sopr, sname, expr.Value)
 }
 
 type Binary struct {

@@ -10,19 +10,20 @@ import (
 )
 
 const (
-	AlreadyInScope       = "Already a variable with this name in this scope"
-	LocalInitializesSelf = "Can't read local variable in its own initializer"
-	LocalNotRead         = "Local variable is not used"
-
 	ReturnTopLevel = "Can't return from top-level code"
 	ReturnFromInit = "Can't return a value from an initializer"
 
+	InheritsSelf       = "A class can't inherit from itself"
 	ThisNotInClass     = "Can't use 'this' outside of a class"
 	InitIsStatic       = "Can't use 'init' as a static function"
 	SuperNotInClass    = "Can't use 'super' outside of a class"
 	SuperNotInSubClass = "Can't use 'super' in a class with no superclass"
-	InheritsSelf       = "A class can't inherit from itself"
 	SuperInStatic      = "Can't use 'super' in a static method"
+
+	// not used yet
+	AlreadyInScope       = "Already a variable with this name in this scope"
+	LocalInitializesSelf = "Can't read local variable in its own initializer"
+	LocalNotRead         = "Local variable is not used"
 )
 
 type clsType int
@@ -104,23 +105,23 @@ func (p *Parser) classDeclaration() (ast.Stmt, error) {
 		return nil, err
 	}
 	var supercls *ast.Variable
-	if p.match(token.LESS) {
+	if p.match(token.LT) {
 		_, err = p.consume(token.IDENTIFIER, "Expect superclass name")
 		if err != nil {
 			return nil, err
 		}
 		supercls = &ast.Variable{Name: p.previous()}
 		if supercls.Name.Lexeme == name.Lexeme {
-			return nil, p.parseErr(supercls.Name, InheritsSelf)
+			_ = p.parseErr(supercls.Name, InheritsSelf)
 		}
 		p.curClass = cls_SUBCLASS
 	}
-	_, err = p.consume(token.LEFT_BRACE, "Expect '{' before class body")
+	_, err = p.consume(token.LBRACE, "Expect '{' before class body")
 	if err != nil {
 		return nil, err
 	}
 	methods := make([]*ast.Function, 0)
-	for !p.check(token.RIGHT_BRACE) && !p.isAtEnd() {
+	for !p.check(token.RBRACE) && !p.isAtEnd() {
 		isStatic, kind := p.match(token.STATIC), ast.FN_METHOD
 		if isStatic {
 			kind = ast.FN_STATIC
@@ -131,7 +132,7 @@ func (p *Parser) classDeclaration() (ast.Stmt, error) {
 		}
 		methods = append(methods, method)
 	}
-	_, err = p.consume(token.RIGHT_BRACE, "Expect '}' after class body")
+	_, err = p.consume(token.RBRACE, "Expect '}' after class body")
 	if err != nil {
 		return nil, err
 	}
@@ -144,6 +145,12 @@ func (p *Parser) function(kind ast.FnType) (*ast.Function, error) {
 	if err != nil {
 		return nil, err
 	}
+	if name.Lexeme == "init" {
+		if kind == ast.FN_STATIC {
+			_ = p.parseErr(name, InitIsStatic)
+		}
+		kind = ast.FN_INIT
+	}
 	body, err := p.lambda(kind)
 	if err != nil {
 		return nil, err
@@ -152,16 +159,17 @@ func (p *Parser) function(kind ast.FnType) (*ast.Function, error) {
 }
 
 func (p *Parser) lambda(kind ast.FnType) (*ast.Lambda, error) {
-	p.curFN = ast.FN_FUNC
-	defer func() { p.curFN = ast.FN_NONE }()
+	prvFn := p.curFN
+	p.curFN = kind
+	defer func() { p.curFN = prvFn }()
 	msg := fmt.Sprintf("Expect '(' after %s name", kind)
-	_, err := p.consume(token.LEFT_PAREN, msg)
+	_, err := p.consume(token.LPAREN, msg)
 	if err != nil {
 		return nil, err
 	}
 
 	params := make([]*token.Token, 0)
-	if !p.check(token.RIGHT_PAREN) {
+	if !p.check(token.RPAREN) {
 		for ok := true; ok; ok = p.match(token.COMMA) {
 			if len(params) >= 255 {
 				_ = p.parseErr(p.peek(), "Can't have more than 255 parameters")
@@ -174,13 +182,13 @@ func (p *Parser) lambda(kind ast.FnType) (*ast.Lambda, error) {
 		}
 	}
 
-	_, err = p.consume(token.RIGHT_PAREN, "Expect ')' after parameters")
+	_, err = p.consume(token.RPAREN, "Expect ')' after parameters")
 	if err != nil {
 		return nil, err
 	}
 
 	msg = fmt.Sprintf("Expect '{' before %s body", kind)
-	_, err = p.consume(token.LEFT_BRACE, msg)
+	_, err = p.consume(token.LBRACE, msg)
 	if err != nil {
 		return nil, err
 	}
@@ -198,7 +206,7 @@ func (p *Parser) varDeclaration() (ast.Stmt, error) {
 		return nil, err
 	}
 	var initializer ast.Expr
-	if p.match(token.EQUAL) {
+	if p.match(token.EQ) {
 		initializer, err = p.expression()
 		if err != nil {
 			return nil, err
@@ -230,7 +238,7 @@ func (p *Parser) statement() (ast.Stmt, error) {
 	if p.match(token.WHILE) {
 		return p.whileStatement()
 	}
-	if p.match(token.LEFT_BRACE) {
+	if p.match(token.LBRACE) {
 		block, err := p.block()
 		if err != nil {
 			return nil, err
@@ -252,8 +260,11 @@ func (p *Parser) breakStatement() (ast.Stmt, error) {
 }
 
 func (p *Parser) returnStatement() (ast.Stmt, error) {
-	if p.curFN == ast.FN_NONE {
-		return nil, p.parseErr(p.previous(), ReturnTopLevel)
+	switch p.curFN {
+	case ast.FN_NONE:
+		_ = p.parseErr(p.previous(), ReturnTopLevel)
+	case ast.FN_INIT:
+		_ = p.parseErr(p.previous(), ReturnFromInit)
 	}
 	keyword := p.previous()
 	var val ast.Expr
@@ -272,7 +283,7 @@ func (p *Parser) returnStatement() (ast.Stmt, error) {
 }
 
 func (p *Parser) forStatement() (ast.Stmt, error) {
-	_, err := p.consume(token.LEFT_PAREN, "Expect '(' after 'for'")
+	_, err := p.consume(token.LPAREN, "Expect '(' after 'for'")
 	if err != nil {
 		return nil, err
 	}
@@ -305,13 +316,13 @@ func (p *Parser) forStatement() (ast.Stmt, error) {
 	}
 
 	var incr ast.Expr
-	if !p.check(token.RIGHT_PAREN) {
+	if !p.check(token.RPAREN) {
 		incr, err = p.expression()
 		if err != nil {
 			return nil, err
 		}
 	}
-	_, err = p.consume(token.RIGHT_PAREN, "Expect ')' after for clauses")
+	_, err = p.consume(token.RPAREN, "Expect ')' after for clauses")
 	if err != nil {
 		return nil, err
 	}
@@ -347,7 +358,7 @@ func (p *Parser) forStatement() (ast.Stmt, error) {
 }
 
 func (p *Parser) whileStatement() (ast.Stmt, error) {
-	_, err := p.consume(token.LEFT_PAREN, "Expect '(' after 'while'")
+	_, err := p.consume(token.LPAREN, "Expect '(' after 'while'")
 	if err != nil {
 		return nil, err
 	}
@@ -356,7 +367,7 @@ func (p *Parser) whileStatement() (ast.Stmt, error) {
 	if err != nil {
 		return nil, err
 	}
-	_, err = p.consume(token.RIGHT_PAREN, "Expect ')' after condition")
+	_, err = p.consume(token.RPAREN, "Expect ')' after condition")
 	if err != nil {
 		return nil, err
 	}
@@ -371,7 +382,7 @@ func (p *Parser) whileStatement() (ast.Stmt, error) {
 }
 
 func (p *Parser) ifStatement() (ast.Stmt, error) {
-	_, err := p.consume(token.LEFT_PAREN, "Expect '(' after 'if'")
+	_, err := p.consume(token.LPAREN, "Expect '(' after 'if'")
 	if err != nil {
 		return nil, err
 	}
@@ -379,7 +390,7 @@ func (p *Parser) ifStatement() (ast.Stmt, error) {
 	if err != nil {
 		return nil, err
 	}
-	_, err = p.consume(token.RIGHT_PAREN, "Expect ')' after if condition")
+	_, err = p.consume(token.RPAREN, "Expect ')' after if condition")
 	if err != nil {
 		return nil, err
 	}
@@ -403,14 +414,14 @@ func (p *Parser) ifStatement() (ast.Stmt, error) {
 
 func (p *Parser) block() ([]ast.Stmt, error) {
 	stmts := make([]ast.Stmt, 0, 8)
-	for !p.check(token.RIGHT_BRACE) && !p.isAtEnd() {
+	for !p.check(token.RBRACE) && !p.isAtEnd() {
 		stmt, err := p.declaration()
 		if err != nil {
 			return nil, err
 		}
 		stmts = append(stmts, stmt)
 	}
-	_, err := p.consume(token.RIGHT_BRACE, "Expect '}' after block")
+	_, err := p.consume(token.RBRACE, "Expect '}' after block")
 	if err != nil {
 		return nil, err
 	}
@@ -450,7 +461,7 @@ func (p *Parser) assignment() (ast.Expr, error) {
 	if err != nil {
 		return nil, err
 	}
-	if p.match(token.EQUAL, token.PLUS_EQUAL, token.MINUS_EQUAL, token.SLASH_EQUAL, token.STAR_EQUAL) {
+	if p.match(token.EQ, token.PLUS_EQ, token.MINUS_EQ, token.SLASH_EQ, token.STAR_EQ) {
 		opr := p.previous()
 		val, err := p.assignment()
 		if err != nil {
@@ -509,7 +520,7 @@ func (p *Parser) equality() (ast.Expr, error) {
 		return nil, err
 	}
 
-	for p.match(token.BANG_EQUAL, token.EQUAL_EQUAL) {
+	for p.match(token.NEQ, token.EQ_EQ) {
 		opr := p.previous()
 		rhs, err := p.comparison()
 		if err != nil {
@@ -521,14 +532,14 @@ func (p *Parser) equality() (ast.Expr, error) {
 }
 
 func (p *Parser) comparison() (ast.Expr, error) {
-	expr, err := p.term()
+	expr, err := p.addition()
 	if err != nil {
 		return nil, err
 	}
 
-	for p.match(token.GREATER, token.GREATER_EQUAL, token.LESS, token.LESS_EQUAL) {
+	for p.match(token.GT, token.GT_EQ, token.LT, token.LT_EQ) {
 		opr := p.previous()
-		rhs, err := p.term()
+		rhs, err := p.addition()
 		if err != nil {
 			return nil, err
 		}
@@ -537,14 +548,14 @@ func (p *Parser) comparison() (ast.Expr, error) {
 	return expr, nil
 }
 
-func (p *Parser) term() (ast.Expr, error) {
-	expr, err := p.factor()
+func (p *Parser) addition() (ast.Expr, error) {
+	expr, err := p.multiplication()
 	if err != nil {
 		return nil, err
 	}
 	for p.match(token.MINUS, token.PLUS) {
 		opr := p.previous()
-		rhs, err := p.factor()
+		rhs, err := p.multiplication()
 		if err != nil {
 			return nil, err
 		}
@@ -553,12 +564,12 @@ func (p *Parser) term() (ast.Expr, error) {
 	return expr, nil
 }
 
-func (p *Parser) factor() (ast.Expr, error) {
+func (p *Parser) multiplication() (ast.Expr, error) {
 	expr, err := p.unary()
 	if err != nil {
 		return nil, err
 	}
-	for p.match(token.SLASH, token.STAR) {
+	for p.match(token.SLASH, token.STAR, token.PERCENT) {
 		opr := p.previous()
 		rhs, err := p.unary()
 		if err != nil {
@@ -587,7 +598,7 @@ func (p *Parser) call() (ast.Expr, error) {
 		return nil, err
 	}
 	for {
-		if p.match(token.LEFT_PAREN) {
+		if p.match(token.LPAREN) {
 			expr, err = p.finishCall(expr)
 			if err != nil {
 				return nil, err
@@ -607,7 +618,7 @@ func (p *Parser) call() (ast.Expr, error) {
 
 func (p *Parser) finishCall(callee ast.Expr) (ast.Expr, error) {
 	args := make([]ast.Expr, 0)
-	if !p.check(token.RIGHT_PAREN) {
+	if !p.check(token.RPAREN) {
 		for ok := true; ok; ok = p.match(token.COMMA) {
 			if len(args) >= 255 {
 				_ = p.parseErr(p.peek(), "Can't have more than 255 arguments")
@@ -619,7 +630,7 @@ func (p *Parser) finishCall(callee ast.Expr) (ast.Expr, error) {
 			args = append(args, arg)
 		}
 	}
-	paren, err := p.consume(token.RIGHT_PAREN, "Expect ')' after arguments")
+	paren, err := p.consume(token.RPAREN, "Expect ')' after arguments")
 	if err != nil {
 		return nil, err
 	}
@@ -642,12 +653,15 @@ func (p *Parser) primary() (ast.Expr, error) {
 	}
 
 	if p.match(token.SUPER) {
-		if p.curClass == cls_NONE {
-			return nil, p.parseErr(p.previous(), SuperNotInClass)
-		} else if p.curClass != cls_SUBCLASS {
-			return nil, p.parseErr(p.previous(), SuperNotInClass)
-		}
 		keyword := p.previous()
+		if p.curClass == cls_NONE {
+			_ = p.parseErr(keyword, SuperNotInClass)
+		} else if p.curClass != cls_SUBCLASS {
+			_ = p.parseErr(keyword, SuperNotInSubClass)
+		}
+		if p.curFN == ast.FN_STATIC {
+			_ = p.parseErr(keyword, SuperInStatic)
+		}
 		_, err := p.consume(token.DOT, "Expect '.' after 'super'")
 		if err != nil {
 			return nil, err
@@ -661,7 +675,7 @@ func (p *Parser) primary() (ast.Expr, error) {
 
 	if p.match(token.THIS) {
 		if p.curClass == cls_NONE {
-			return nil, p.parseErr(p.previous(), ThisNotInClass)
+			_ = p.parseErr(p.previous(), ThisNotInClass)
 		}
 		return &ast.This{Keyword: p.previous()}, nil
 	}
@@ -674,12 +688,12 @@ func (p *Parser) primary() (ast.Expr, error) {
 		return &ast.Variable{Name: p.previous()}, nil
 	}
 
-	if p.match(token.LEFT_PAREN) {
+	if p.match(token.LPAREN) {
 		expr, err := p.expression()
 		if err != nil {
 			return nil, err
 		}
-		_, err = p.consume(token.RIGHT_PAREN, "Expect ')' after expression")
+		_, err = p.consume(token.RPAREN, "Expect ')' after expression")
 		if err != nil {
 			return nil, err
 		}

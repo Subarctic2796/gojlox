@@ -41,33 +41,39 @@ func (l *Lexer) ScanTokens() ([]*token.Token, error) {
 func (l *Lexer) scanToken() {
 	switch c := l.advance(); c {
 	case '(':
-		l.addToken(token.LEFT_PAREN)
+		l.addToken(token.LPAREN)
 	case ')':
-		l.addToken(token.RIGHT_PAREN)
+		l.addToken(token.RPAREN)
 	case '{':
-		l.addToken(token.LEFT_BRACE)
+		l.addToken(token.LBRACE)
 	case '}':
-		l.addToken(token.RIGHT_BRACE)
+		l.addToken(token.RBRACE)
+	case '[':
+		l.addToken(token.LSQR)
+	case ']':
+		l.addToken(token.RSQR)
 	case ',':
 		l.addToken(token.COMMA)
 	case '.':
 		l.addToken(token.DOT)
 	case ';':
 		l.addToken(token.SEMICOLON)
+	case '%':
+		l.addMatchToken('=', token.PERCENT_EQ, token.PERCENT)
 	case '*':
-		l.addMatchToken('=', token.STAR_EQUAL, token.STAR)
+		l.addMatchToken('=', token.STAR_EQ, token.STAR)
 	case '+':
-		l.addMatchToken('=', token.PLUS_EQUAL, token.PLUS)
+		l.addMatchToken('=', token.PLUS_EQ, token.PLUS)
 	case '-':
-		l.addMatchToken('=', token.MINUS_EQUAL, token.MINUS)
+		l.addMatchToken('=', token.MINUS_EQ, token.MINUS)
 	case '!':
-		l.addMatchToken('=', token.BANG_EQUAL, token.BANG)
+		l.addMatchToken('=', token.NEQ, token.BANG)
 	case '=':
-		l.addMatchToken('=', token.EQUAL_EQUAL, token.EQUAL)
+		l.addMatchToken('=', token.EQ_EQ, token.EQ)
 	case '<':
-		l.addMatchToken('=', token.LESS_EQUAL, token.LESS)
+		l.addMatchToken('=', token.LT_EQ, token.LT)
 	case '>':
-		l.addMatchToken('=', token.GREATER_EQUAL, token.GREATER)
+		l.addMatchToken('=', token.GT_EQ, token.GT)
 	case '/':
 		if l.match('/') {
 			for l.peek() != '\n' && !l.isAtEnd() {
@@ -76,7 +82,7 @@ func (l *Lexer) scanToken() {
 		} else if l.match('*') {
 			l.multiLineComment()
 		} else {
-			l.addMatchToken('=', token.SLASH_EQUAL, token.SLASH)
+			l.addMatchToken('=', token.SLASH_EQ, token.SLASH)
 		}
 	case ' ', '\r', '\t':
 	case '\n':

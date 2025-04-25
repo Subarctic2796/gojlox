@@ -306,14 +306,16 @@ func (i *Interpreter) exprAssign(expr *ast.Assign) (any, error) {
 	}
 	oprType := token.NONE
 	switch expr.Operator.Kind {
-	case token.PLUS_EQUAL:
+	case token.PLUS_EQ:
 		oprType = token.PLUS
-	case token.MINUS_EQUAL:
+	case token.MINUS_EQ:
 		oprType = token.MINUS
-	case token.SLASH_EQUAL:
+	case token.SLASH_EQ:
 		oprType = token.SLASH
-	case token.STAR_EQUAL:
+	case token.STAR_EQ:
 		oprType = token.STAR
+	case token.PERCENT_EQ:
+		oprType = token.PERCENT
 	}
 	if oprType != token.NONE {
 		tmp, err := i.lookUpVariable(expr.Name, expr)
@@ -351,25 +353,29 @@ func (i *Interpreter) exprBinary(expr *ast.Binary) (any, error) {
 	}
 
 	switch expr.Operator.Kind {
-	case token.GREATER:
+	case token.NEQ:
+		return !i.isEqual(lhs, rhs), nil
+	case token.EQ_EQ:
+		return i.isEqual(lhs, rhs), nil
+	case token.GT:
 		l, r, err := i.checkNumberOperands(expr.Operator, lhs, rhs)
 		if err != nil {
 			return nil, err
 		}
 		return l > r, nil
-	case token.GREATER_EQUAL:
+	case token.GT_EQ:
 		l, r, err := i.checkNumberOperands(expr.Operator, lhs, rhs)
 		if err != nil {
 			return nil, err
 		}
 		return l >= r, nil
-	case token.LESS:
+	case token.LT:
 		l, r, err := i.checkNumberOperands(expr.Operator, lhs, rhs)
 		if err != nil {
 			return nil, err
 		}
 		return l < r, nil
-	case token.LESS_EQUAL:
+	case token.LT_EQ:
 		l, r, err := i.checkNumberOperands(expr.Operator, lhs, rhs)
 		if err != nil {
 			return nil, err
@@ -381,10 +387,30 @@ func (i *Interpreter) exprBinary(expr *ast.Binary) (any, error) {
 			return nil, err
 		}
 		return l - r, nil
-	case token.BANG_EQUAL:
-		return !i.isEqual(lhs, rhs), nil
-	case token.EQUAL_EQUAL:
-		return i.isEqual(lhs, rhs), nil
+	case token.STAR:
+		l, r, err := i.checkNumberOperands(expr.Operator, lhs, rhs)
+		if err != nil {
+			return nil, err
+		}
+		return l * r, nil
+	case token.PERCENT:
+		l, r, err := i.checkNumberOperands(expr.Operator, lhs, rhs)
+		if err != nil {
+			return nil, err
+		}
+		return float64(int(l) % int(r)), nil
+	case token.SLASH:
+		l, r, err := i.checkNumberOperands(expr.Operator, lhs, rhs)
+		if err != nil {
+			return nil, err
+		}
+		if r == 0.0 {
+			return nil, &RunTimeErr{
+				Tok: expr.Operator,
+				Msg: "Division by 0",
+			}
+		}
+		return l / r, nil
 	case token.PLUS:
 		// looks ugly but is faster as if lhs is not a float/string then
 		// we don't have to do check if rhs is a floa/string
@@ -402,24 +428,6 @@ func (i *Interpreter) exprBinary(expr *ast.Binary) (any, error) {
 			Tok: expr.Operator,
 			Msg: "Operands must be two numbers or two strings",
 		}
-	case token.SLASH:
-		l, r, err := i.checkNumberOperands(expr.Operator, lhs, rhs)
-		if err != nil {
-			return nil, err
-		}
-		if r == 0.0 {
-			return nil, &RunTimeErr{
-				Tok: expr.Operator,
-				Msg: "Division by 0",
-			}
-		}
-		return l / r, nil
-	case token.STAR:
-		l, r, err := i.checkNumberOperands(expr.Operator, lhs, rhs)
-		if err != nil {
-			return nil, err
-		}
-		return l * r, nil
 	}
 	// unreachable
 	return nil, nil
