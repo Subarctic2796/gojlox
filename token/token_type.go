@@ -16,6 +16,7 @@ const (
 
 	COMMA
 	DOT
+	COLON
 
 	// terminators
 	SEMICOLON

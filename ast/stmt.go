@@ -54,14 +54,32 @@ func (stmt *Expression) String() string {
 
 type Function struct {
 	Name *token.Token
-	Func *Lambda
-	/* Params []*token.Token
+	// Func *Lambda
+	Params []*token.Token
 	Body   []Stmt
-	Kind   FnType */
+	Kind   FnType
 }
 
 func (stmt *Function) String() string {
-	return fmt.Sprintf("(fun %s(%s", stmt.Name.Lexeme, stmt.Func)
+	// return fmt.Sprintf("(fun %s(%s", stmt.Name.Lexeme, stmt.Func)
+	var sb strings.Builder
+	if stmt.Kind == FN_LAMBDA {
+		sb.WriteString("(fun(")
+	} else {
+		sb.WriteString(fmt.Sprintf("(fun %s(", stmt.Name.Lexeme))
+	}
+	for _, param := range stmt.Params {
+		if param != stmt.Params[0] {
+			sb.WriteByte(' ')
+		}
+		sb.WriteString(param.Lexeme)
+	}
+	sb.WriteString(") ")
+	for _, s := range stmt.Body {
+		sb.WriteString(s.String())
+	}
+	sb.WriteString(")")
+	return sb.String()
 }
 
 type If struct {

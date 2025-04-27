@@ -12,14 +12,15 @@ type Expr interface {
 }
 
 type ArrayLiteral struct {
+	Sqr      *token.Token
 	Elements []Expr
 }
 
 func (expr *ArrayLiteral) String() string {
 	var sb strings.Builder
-	sb.WriteString("([")
+	sb.WriteString("([\n")
 	for _, elm := range expr.Elements {
-		sb.WriteString(fmt.Sprintf("%s, ", elm.String()))
+		sb.WriteString(fmt.Sprintf("    %s,\n", elm))
 	}
 	sb.WriteString("])")
 	return sb.String()
@@ -63,6 +64,16 @@ func (expr *Call) String() string {
 	return fmt.Sprintf("(call %s%s", expr.Callee, sb.String())
 }
 
+type IndexedGet struct {
+	Object Expr
+	Sqr    *token.Token
+	Index  Expr
+}
+
+func (expr *IndexedGet) String() string {
+	return fmt.Sprintf("(%s[%s])", expr.Object, expr.Index)
+}
+
 type Get struct {
 	Object Expr
 	Name   *token.Token
@@ -80,31 +91,43 @@ func (expr *Grouping) String() string {
 	return fmt.Sprintf("(group %s)", expr.Expression)
 }
 
+type HashLiteral struct {
+	Brace *token.Token
+	Pairs map[Expr]Expr
+}
+
+func (expr *HashLiteral) String() string {
+	var sb strings.Builder
+	sb.WriteString("({\n")
+	for k, v := range expr.Pairs {
+		sb.WriteString(fmt.Sprintf("   %s: %s,\n", k, v))
+	}
+	sb.WriteString("})")
+	return sb.String()
+}
+
 type Lambda struct {
-	Params []*token.Token
-	Body   []Stmt
-	Kind   FnType
-	// Body *Function
+	Func *Function
 }
 
 func (expr *Lambda) String() string {
-	// return fmt.Sprintf("(fun(%s))", expr.Name.Lexeme, expr.Func)
-	var sb strings.Builder
-	if expr.Kind == FN_LAMBDA {
-		sb.WriteString("(fun(")
-	}
-	for _, param := range expr.Params {
-		if param != expr.Params[0] {
-			sb.WriteByte(' ')
-		}
-		sb.WriteString(param.Lexeme)
-	}
-	sb.WriteString(") ")
-	for _, s := range expr.Body {
-		sb.WriteString(s.String())
-	}
-	sb.WriteString(")")
-	return sb.String()
+	return fmt.Sprint(expr.Func)
+	// var sb strings.Builder
+	// if expr.Kind == FN_LAMBDA {
+	// 	sb.WriteString("(fun(")
+	// }
+	// for _, param := range expr.Params {
+	// 	if param != expr.Params[0] {
+	// 		sb.WriteByte(' ')
+	// 	}
+	// 	sb.WriteString(param.Lexeme)
+	// }
+	// sb.WriteString(") ")
+	// for _, s := range expr.Body {
+	// 	sb.WriteString(s.String())
+	// }
+	// sb.WriteString(")")
+	// return sb.String()
 }
 
 type Literal struct {
@@ -138,6 +161,17 @@ type Set struct {
 func (expr *Set) String() string {
 	sname := expr.Name.Lexeme
 	return fmt.Sprintf("(= %s %s %s)", expr.Object, sname, expr.Value)
+}
+
+type IndexedSet struct {
+	Object Expr
+	Sqr    *token.Token
+	Index  Expr
+	Value  Expr
+}
+
+func (expr *IndexedSet) String() string {
+	return fmt.Sprintf("(%s[%s] = %s)", expr.Object, expr.Index, expr.Value)
 }
 
 type Super struct {

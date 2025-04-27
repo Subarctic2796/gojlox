@@ -1,6 +1,6 @@
 BIN = gojlox
 
-build: gen
+build: clean gen
 	go build -o $(BIN)
 
 gen:
@@ -9,4 +9,7 @@ gen:
 run:
 	@go run .
 
-.PHONY: build gen run
+clean:
+	$(RM) $(BIN)
+
+.PHONY: build gen run clean

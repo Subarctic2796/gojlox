@@ -58,6 +58,8 @@ func (l *Lexer) scanToken() {
 		l.addToken(token.DOT)
 	case ';':
 		l.addToken(token.SEMICOLON)
+	case ':':
+		l.addToken(token.COLON)
 	case '%':
 		l.addMatchToken('=', token.PERCENT_EQ, token.PERCENT)
 	case '*':

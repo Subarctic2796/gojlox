@@ -56,7 +56,7 @@ func (r *Resolver) resolveLocal(expr ast.Expr, name *token.Token, isRead bool) {
 	}
 }
 
-func (r *Resolver) resolveLambda(fn *ast.Lambda) {
+func (r *Resolver) resolveFunction(fn *ast.Function) {
 	r.beginScope()
 	for _, param := range fn.Params {
 		r.declare(param)
@@ -107,6 +107,10 @@ func (r *Resolver) reportTok(tok *token.Token, msg error) {
 
 func (r *Resolver) resolveExpr(exprNode ast.Expr) {
 	switch expr := exprNode.(type) {
+	case *ast.ArrayLiteral:
+		for _, elm := range expr.Elements {
+			r.resolveExpr(elm)
+		}
 	case *ast.Assign:
 		r.resolveExpr(expr.Value)
 		r.resolveLocal(expr, expr.Name, false)
@@ -122,8 +126,19 @@ func (r *Resolver) resolveExpr(exprNode ast.Expr) {
 		r.resolveExpr(expr.Object)
 	case *ast.Grouping:
 		r.resolveExpr(expr.Expression)
+	case *ast.HashLiteral:
+		r.resolveHashMapPairs(expr.Pairs)
+	case *ast.IndexedGet:
+		r.resolveExpr(expr.Object)
+		r.resolveExpr(expr.Index)
+	case *ast.IndexedSet:
+		r.resolveExpr(expr.Object)
+		r.resolveExpr(expr.Index)
+		r.resolveExpr(expr.Value)
 	case *ast.Lambda:
-		r.resolveLambda(expr)
+		r.resolveFunction(expr.Func)
+	case *ast.Literal:
+		return
 	case *ast.Logical:
 		r.resolveExpr(expr.Left)
 		r.resolveExpr(expr.Right)
@@ -144,6 +159,8 @@ func (r *Resolver) resolveExpr(exprNode ast.Expr) {
 			}
 		}
 		r.resolveLocal(expr, expr.Name, true)
+	default:
+		panic(fmt.Sprintf("resolving is not implemented for %T", expr))
 	}
 }
 
@@ -158,7 +175,7 @@ func (r *Resolver) resolveStmt(stmtNode ast.Stmt) {
 	case *ast.Function:
 		r.declare(stmt.Name)
 		r.define(stmt.Name)
-		r.resolveLambda(stmt.Func)
+		r.resolveFunction(stmt)
 	case *ast.If:
 		r.resolveExpr(stmt.Condition)
 		r.resolveStmt(stmt.ThenBranch)
@@ -168,12 +185,10 @@ func (r *Resolver) resolveStmt(stmtNode ast.Stmt) {
 	case *ast.Print:
 		r.resolveExpr(stmt.Expression)
 	case *ast.Control:
-		if stmt.Kind != ast.CNTRL_RETURN {
-			return
-		}
-		if stmt.Value != nil {
+		if stmt.Kind == ast.CNTRL_RETURN && stmt.Value != nil {
 			r.resolveExpr(stmt.Value)
 		}
+		return
 	case *ast.Var:
 		r.declare(stmt.Name)
 		if stmt.Initializer != nil {
@@ -183,6 +198,24 @@ func (r *Resolver) resolveStmt(stmtNode ast.Stmt) {
 	case *ast.While:
 		r.resolveExpr(stmt.Condition)
 		r.resolveStmt(stmt.Body)
+	default:
+		panic(fmt.Sprintf("resolving is not implemented for %T", stmt))
+	}
+}
+
+func (r *Resolver) resolveHashMapPairs(pairs map[ast.Expr]ast.Expr) {
+	for k, v := range pairs {
+		switch kt := k.(type) {
+		case *ast.ArrayLiteral:
+			r.reportTok(kt.Sqr, ErrUnHashAble)
+		case *ast.HashLiteral:
+			r.reportTok(kt.Brace, ErrUnHashAble)
+		case *ast.Lambda:
+			r.reportTok(kt.Func.Name, ErrUnHashAble)
+		default:
+			r.resolveExpr(k)
+		}
+		r.resolveExpr(v)
 	}
 }
 
@@ -209,6 +242,6 @@ func (r *Resolver) stmtClass(stmt *ast.Class) {
 	}()
 	r.scopes[len(r.scopes)-1]["this"] = &varInfo{stmt.Name, vs_IMPLICIT}
 	for _, method := range stmt.Methods {
-		r.resolveLambda(method.Func)
+		r.resolveFunction(method)
 	}
 }

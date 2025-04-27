@@ -12,11 +12,11 @@ type LoxFn interface {
 
 type UserFn struct {
 	Name    string
-	Func    *ast.Lambda
+	Func    *ast.Function
 	Closure *Env
 }
 
-func NewUserFn(name string, fn *ast.Lambda, closure *Env) *UserFn {
+func NewUserFn(name string, fn *ast.Function, closure *Env) *UserFn {
 	return &UserFn{name, fn, closure}
 }
 

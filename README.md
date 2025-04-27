@@ -8,12 +8,13 @@
 - repl can evaluate expressions, not only statements. (WIP)
     - `2 + 3` in the repl prints 5.
 - static class functions using the `static` keyword before a class method.
+- arrays and hashmaps
 
 # Running
 ```console
 git clone --depth=1 https://github.com/Subarctic2796/gojlox.git
 cd gojlox
-go build .
+make build
 ./gojlox
 ```
 
@@ -31,19 +32,25 @@ go run .
 ```
 
 # Currently working on
-- [ ] move away from visitor pattern, and just use straight type checks
-- [ ] add pretty printer for ast
-- [ ] make `this.fn()` work if the surrounding func and `fn` are both static
-- [ ] create better internal object/type system
-- [ ] make `ast.Literal` node a generic as it only ever has `strings, floats, nils, and bools`
+- [ ] adding hashmaps
+- [ ] make `+=, -=, etc` work in `arr[2] += 1`
+- [ ] make indexing work properly
 
 # Current plans
 - [ ] add support for expressions in the repl
 - [ ] improve performance
   - [ ] move some of the resolver checks to the parser
   - [ ] use arrays instead of hashmaps for `Env` struct
-  - [ ] move away from visitor pattern, and just use straight type checks
+  - [x] move away from visitor pattern, and just use straight type checks
+  - [ ] precompute some binary nodes
+  - [ ] make real negative numbers
+  - [ ] store scope info in ast nodes
 - [ ] add arrays and hashmaps
+  - [x] add arrays
+  - [ ] add hashmaps
+  - [ ] add trailing comma support
+  - [ ] add `for of` loops.
+  - [ ] add slicing `print arr[2:5];` and negative indexing `print a[-2];`
 - [ ] make `;` optional
 - [ ] add ability to import other files
 - [ ] add type hints (want to make it statically typed if possible)
@@ -58,12 +65,9 @@ go run .
 - [ ] remove `genAst.go` script
 - [ ] add native classes (act as modules maybe?)
 - [ ] back port clox variable handling ?
-- [ ] store scope info in ast nodes
 - [ ] add compile step (?)
 - [ ] change LoxFn to be an interface instead, and have native functions be NativeFn and current LoxFn be UserFn structs
 - [ ] create Makefile
-- [ ] pre compute some binary nodes
-- [ ] make real negative numbers
 - [ ] add better error messages
 - [ ] add `else if` branches and `switch` cases
 - [ ] add debugging support, dumping env, etc

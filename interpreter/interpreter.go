@@ -3,6 +3,7 @@ package interpreter
 import (
 	"errors"
 	"fmt"
+	"hash/fnv"
 	"os"
 
 	"github.com/Subarctic2796/gojlox/ast"
@@ -18,8 +19,8 @@ type Interpreter struct {
 
 func NewInterpreter() *Interpreter {
 	globals := NewEnv(nil)
-	for _, fn := range NativeFns {
-		globals.Define(fn.Name(), fn)
+	for name, fn := range NativeFns {
+		globals.Define(name, fn)
 	}
 	return &Interpreter{
 		globals,
@@ -113,6 +114,16 @@ func (i *Interpreter) reportRunTimeErr(msg error) {
 
 func (i *Interpreter) evaluate(exprNode ast.Expr) (any, error) {
 	switch expr := exprNode.(type) {
+	case *ast.ArrayLiteral:
+		items := make([]any, 0, len(expr.Elements))
+		for _, elm := range expr.Elements {
+			e, err := i.evaluate(elm)
+			if err != nil {
+				return nil, err
+			}
+			items = append(items, e)
+		}
+		return &LoxArray{items}, nil
 	case *ast.Assign:
 		return i.exprAssign(expr)
 	case *ast.Binary:
@@ -123,8 +134,14 @@ func (i *Interpreter) evaluate(exprNode ast.Expr) (any, error) {
 		return i.exprGet(expr)
 	case *ast.Grouping:
 		return i.evaluate(expr.Expression)
+	case *ast.HashLiteral:
+		return i.exprHashLiteral(expr)
+	case *ast.IndexedGet:
+		return i.exprIndexGet(expr)
+	case *ast.IndexedSet:
+		return i.exprIndexSet(expr)
 	case *ast.Lambda:
-		return NewUserFn("", expr, i.env), nil
+		return NewUserFn("", expr.Func, i.env), nil
 	case *ast.Literal:
 		return expr.Value, nil
 	case *ast.Logical:
@@ -152,8 +169,9 @@ func (i *Interpreter) evaluate(exprNode ast.Expr) (any, error) {
 		return i.exprUnary(expr)
 	case *ast.Variable:
 		return i.lookUpVariable(expr.Name, expr)
+	default:
+		panic(fmt.Sprintf("evaluate is unimplemented for '%T'", expr))
 	}
-	return nil, nil
 }
 
 func (i *Interpreter) execute(stmtNode ast.Stmt) (any, error) {
@@ -172,7 +190,7 @@ func (i *Interpreter) execute(stmtNode ast.Stmt) (any, error) {
 		return nil, nil
 	case *ast.Function:
 		name := stmt.Name.Lexeme
-		fn := NewUserFn(name, stmt.Func, i.env)
+		fn := NewUserFn(name, stmt, i.env)
 		i.env.Define(name, fn)
 		return nil, nil
 	case *ast.If:
@@ -206,8 +224,9 @@ func (i *Interpreter) execute(stmtNode ast.Stmt) (any, error) {
 		return nil, nil
 	case *ast.While:
 		return i.stmtWhile(stmt)
+	default:
+		panic(fmt.Sprintf("execute is unimplemented for '%T'", stmt))
 	}
-	return nil, nil
 }
 
 func (i *Interpreter) stmtWhile(stmt *ast.While) (any, error) {
@@ -258,7 +277,7 @@ func (i *Interpreter) stmtClass(stmt *ast.Class) (any, error) {
 		if err != nil {
 			return nil, err
 		}
-		if _, ok := supercls.(*LoxClass); !ok {
+		if _, ok := supercls.(*UserClass); !ok {
 			return nil, &RunTimeErr{
 				Tok: stmt.Superclass.Name,
 				Msg: "Superclass must be a class",
@@ -272,10 +291,10 @@ func (i *Interpreter) stmtClass(stmt *ast.Class) (any, error) {
 	}
 	methods := make(map[string]*UserFn)
 	for _, method := range stmt.Methods {
-		methods[method.Name.Lexeme] = NewUserFn(method.Name.Lexeme, method.Func, i.env)
+		methods[method.Name.Lexeme] = NewUserFn(method.Name.Lexeme, method, i.env)
 	}
-	scls, _ := supercls.(*LoxClass)
-	klass := NewLoxClass(stmt.Name.Lexeme, scls, methods)
+	scls, _ := supercls.(*UserClass)
+	klass := NewUserClass(stmt.Name.Lexeme, scls, methods)
 	if supercls != nil {
 		i.env = i.env.Enclosing
 	}
@@ -469,7 +488,7 @@ func (i *Interpreter) exprGet(expr *ast.Get) (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	if klass, ok := obj.(*LoxClass); ok {
+	if klass, ok := obj.(*UserClass); ok {
 		static := klass.FindMethod(expr.Name.Lexeme)
 		if static != nil {
 			if static.Func.Kind != ast.FN_STATIC {
@@ -512,7 +531,7 @@ func (i *Interpreter) exprSet(expr *ast.Set) (any, error) {
 
 func (i *Interpreter) exprSuper(expr *ast.Super) (any, error) {
 	dist := i.locals[expr]
-	superclass := i.env.GetAt(dist, "super").(*LoxClass)
+	superclass := i.env.GetAt(dist, "super").(*UserClass)
 	obj := i.env.GetAt(dist-1, "this").(*LoxInstance)
 	method := superclass.FindMethod(expr.Method.Lexeme)
 	if method == nil {
@@ -541,4 +560,119 @@ func (i *Interpreter) exprUnary(expr *ast.Unary) (any, error) {
 	}
 	// unreachable
 	return nil, nil
+}
+
+func (i *Interpreter) exprIndexGet(expr *ast.IndexedGet) (any, error) {
+	obj, err := i.evaluate(expr.Object)
+	if err != nil {
+		return nil, err
+	}
+	switch iter := obj.(type) {
+	case *LoxArray:
+		idx, err := i.checkIndex(expr.Sqr, expr.Index, len(iter.Items), "array or string")
+		if err != nil {
+			return nil, err
+		}
+		return iter.Items[idx], nil
+	case string:
+		idx, err := i.checkIndex(expr.Sqr, expr.Index, len(iter), "array or string")
+		if err != nil {
+			return nil, err
+		}
+		return string(iter[idx]), nil
+	default:
+		return nil, &RunTimeErr{
+			Tok: expr.Sqr,
+			Msg: "Can only index an array or string",
+		}
+
+	}
+}
+
+func (i *Interpreter) exprIndexSet(expr *ast.IndexedSet) (any, error) {
+	tmpErr := &RunTimeErr{Tok: expr.Sqr, Msg: ""}
+	obj, err := i.evaluate(expr.Object)
+	if err != nil {
+		return nil, err
+	}
+	iter, ok := obj.(*LoxIterable)
+	if !ok {
+		tmpErr.Msg = "Only iterables can be set using an index"
+		return nil, tmpErr
+	}
+	val, err := i.evaluate(expr.Value)
+	if err != nil {
+		return nil, err
+	}
+	idx, err := i.checkIndex(expr.Sqr, expr.Index, len(iter.Items), "array")
+	if err != nil {
+		return nil, err
+	}
+	iter.Items[idx] = val
+	return val, nil
+}
+
+func (i *Interpreter) exprHashLiteral(expr *ast.HashLiteral) (any, error) {
+	pairs := make(map[uint]*LoxPair)
+	for key, val := range expr.Pairs {
+		k, err := i.evaluate(key)
+		if err != nil {
+			return nil, err
+		}
+		v, err := i.evaluate(val)
+		if err != nil {
+			return nil, err
+		}
+		hash, err := i.hashObj(k, expr.Brace)
+		if err != nil {
+			return nil, err
+		}
+		pairs[hash] = &LoxPair{k, v}
+	}
+	return &LoxHashMap{pairs}, nil
+}
+
+func (i *Interpreter) hashObj(obj any, brace *token.Token) (uint, error) {
+	hasher := fnv.New64a()
+	switch val := obj.(type) {
+	case string:
+		hasher.Write([]byte(val))
+		return uint(hasher.Sum64()), nil
+	case float64:
+		return uint(val), nil
+	case bool:
+		if val {
+			return 1, nil
+		}
+		return 0, nil
+	case *LoxInstance:
+		return val.Hash(), nil
+	default:
+		return 0, &RunTimeErr{
+			Tok: brace,
+			Msg: fmt.Sprintf("Unhashable type '%T'", val),
+		}
+	}
+}
+
+func (i *Interpreter) checkIndex(sqr *token.Token, index ast.Expr, objlen int, kind string) (int, error) {
+	fdx, err := i.evaluate(index)
+	if err != nil {
+		return 0, err
+	}
+	fidx, ok := fdx.(float64)
+	if !ok {
+		return 0, &RunTimeErr{
+			Tok: sqr,
+			Msg: fmt.Sprintf("Can only use numbers to index an %s", kind),
+		}
+	}
+	idx := int(fidx)
+	if idx < 0 || idx > objlen-1 {
+		return 0, &RunTimeErr{
+			Tok: sqr,
+			Msg: fmt.Sprintf("Index out of bounds. index: %d, length: %d", objlen, idx),
+		}
+	}
+	return idx, nil
 }

@@ -15,6 +15,7 @@ const (
 
 	InheritsSelf       = "A class can't inherit from itself"
 	ThisNotInClass     = "Can't use 'this' outside of a class"
+	ThisInStatic       = "Can't use 'this' in a static function"
 	InitIsStatic       = "Can't use 'init' as a static function"
 	SuperNotInClass    = "Can't use 'super' outside of a class"
 	SuperNotInSubClass = "Can't use 'super' in a class with no superclass"
@@ -57,12 +58,13 @@ func NewParser(tokens []*token.Token) *Parser {
 func (p *Parser) Parse() ([]ast.Stmt, error) {
 	stmts := make([]ast.Stmt, 0, 16)
 	for !p.isAtEnd() {
-		stmt, err := p.declaration()
-		if err != nil {
-			p.curErr = err
-		}
+		// don't need to check the error
+		// as parseErr reports it and sets curErr
+		stmt, _ := p.declaration()
 		stmts = append(stmts, stmt)
 	}
+	// need to check here because we don't want to give
+	// the rest of the pipeline a bad input
 	if p.curErr != nil {
 		return nil, p.curErr
 	}
@@ -112,6 +114,8 @@ func (p *Parser) classDeclaration() (ast.Stmt, error) {
 		}
 		supercls = &ast.Variable{Name: p.previous()}
 		if supercls.Name.Lexeme == name.Lexeme {
+			// only report error, this way we don't mess up the state of the parser
+			// it also makes parser errors much less noisy
 			_ = p.parseErr(supercls.Name, InheritsSelf)
 		}
 		p.curClass = cls_SUBCLASS
@@ -147,6 +151,8 @@ func (p *Parser) function(kind ast.FnType) (*ast.Function, error) {
 	}
 	if name.Lexeme == "init" {
 		if kind == ast.FN_STATIC {
+			// only report error, this way we don't mess up the state of the parser
+			// it also makes parser errors much less noisy
 			_ = p.parseErr(name, InitIsStatic)
 		}
 		kind = ast.FN_INIT
@@ -155,7 +161,13 @@ func (p *Parser) function(kind ast.FnType) (*ast.Function, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &ast.Function{Name: name, Func: body}, nil
+	fn := &ast.Function{
+		Name:   name,
+		Params: body.Func.Params,
+		Body:   body.Func.Body,
+		Kind:   body.Func.Kind,
+	}
+	return fn, nil
 }
 
 func (p *Parser) lambda(kind ast.FnType) (*ast.Lambda, error) {
@@ -172,6 +184,8 @@ func (p *Parser) lambda(kind ast.FnType) (*ast.Lambda, error) {
 	if !p.check(token.RPAREN) {
 		for ok := true; ok; ok = p.match(token.COMMA) {
 			if len(params) >= 255 {
+				// only report error, this way we don't mess up the state of the parser
+				// it also makes parser errors much less noisy
 				_ = p.parseErr(p.peek(), "Can't have more than 255 parameters")
 			}
 			ident, err := p.consume(token.IDENTIFIER, "Expect parameter name")
@@ -197,7 +211,8 @@ func (p *Parser) lambda(kind ast.FnType) (*ast.Lambda, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &ast.Lambda{Params: params, Body: body, Kind: kind}, nil
+	fn := &ast.Function{Name: nil, Params: params, Body: body, Kind: kind}
+	return &ast.Lambda{Func: fn}, nil
 }
 
 func (p *Parser) varDeclaration() (ast.Stmt, error) {
@@ -250,6 +265,8 @@ func (p *Parser) statement() (ast.Stmt, error) {
 
 func (p *Parser) breakStatement() (ast.Stmt, error) {
 	if p.loopDepth == 0 {
+		// only report error, this way we don't mess up the state of the parser
+		// it also makes parser errors much less noisy
 		_ = p.parseErr(p.previous(), "Must be in a loop to use 'break'")
 	}
 	_, err := p.consume(token.SEMICOLON, "Expect ';' after 'break'")
@@ -260,6 +277,8 @@ func (p *Parser) breakStatement() (ast.Stmt, error) {
 }
 
 func (p *Parser) returnStatement() (ast.Stmt, error) {
+	// only report error, this way we don't mess up the state of the parser
+	// it also makes parser errors much less noisy
 	switch p.curFN {
 	case ast.FN_NONE:
 		_ = p.parseErr(p.previous(), ReturnTopLevel)
@@ -467,16 +486,25 @@ func (p *Parser) assignment() (ast.Expr, error) {
 		if err != nil {
 			return nil, err
 		}
-		if vexpr, ok := expr.(*ast.Variable); ok {
-			name := vexpr.Name
-			return &ast.Assign{Name: name, Operator: opr, Value: val}, nil
-		} else if get, ok := expr.(*ast.Get); ok {
+		switch n := expr.(type) {
+		case *ast.Variable:
+			return &ast.Assign{Name: n.Name, Operator: opr, Value: val}, nil
+		case *ast.Get:
 			return &ast.Set{
-				Object: get.Object,
-				Name:   get.Name,
+				Object: n.Object,
+				Name:   n.Name,
+				Value:  val,
+			}, nil
+		case *ast.IndexedGet:
+			return &ast.IndexedSet{
+				Object: n.Object,
+				Sqr:    n.Sqr,
+				Index:  n.Index,
 				Value:  val,
 			}, nil
 		}
+		// only report error, this way we don't mess up the state of the parser
+		// it also makes parser errors much less noisy
 		_ = p.parseErr(opr, "Invalid assignment target")
 	}
 	return expr, nil
@@ -603,6 +631,11 @@ func (p *Parser) call() (ast.Expr, error) {
 			if err != nil {
 				return nil, err
 			}
+		} else if p.match(token.LSQR) {
+			expr, err = p.finishIndex(expr)
+			if err != nil {
+				return nil, err
+			}
 		} else if p.match(token.DOT) {
 			name, err := p.consume(token.IDENTIFIER, "Expect property name after '.'")
 			if err != nil {
@@ -621,6 +654,8 @@ func (p *Parser) finishCall(callee ast.Expr) (ast.Expr, error) {
 	if !p.check(token.RPAREN) {
 		for ok := true; ok; ok = p.match(token.COMMA) {
 			if len(args) >= 255 {
+				// only report error, this way we don't mess up the state of the parser
+				// it also makes parser errors much less noisy
 				_ = p.parseErr(p.peek(), "Can't have more than 255 arguments")
 			}
 			arg, err := p.expression()
@@ -640,20 +675,16 @@ func (p *Parser) finishCall(callee ast.Expr) (ast.Expr, error) {
 func (p *Parser) primary() (ast.Expr, error) {
 	if p.match(token.FALSE) {
 		return &ast.Literal{Value: false}, nil
-	}
-	if p.match(token.TRUE) {
+	} else if p.match(token.TRUE) {
 		return &ast.Literal{Value: true}, nil
-	}
-	if p.match(token.NIL) {
+	} else if p.match(token.NIL) {
 		return &ast.Literal{Value: nil}, nil
-	}
-
-	if p.match(token.NUMBER, token.STRING) {
+	} else if p.match(token.NUMBER, token.STRING) {
 		return &ast.Literal{Value: p.previous().Literal}, nil
-	}
-
-	if p.match(token.SUPER) {
+	} else if p.match(token.SUPER) {
 		keyword := p.previous()
+		// only report error, this way we don't mess up the state of the parser
+		// it also makes parser errors much less noisy
 		if p.curClass == cls_NONE {
 			_ = p.parseErr(keyword, SuperNotInClass)
 		} else if p.curClass != cls_SUBCLASS {
@@ -671,24 +702,21 @@ func (p *Parser) primary() (ast.Expr, error) {
 			return nil, err
 		}
 		return &ast.Super{Keyword: keyword, Method: method}, nil
-	}
-
-	if p.match(token.THIS) {
+	} else if p.match(token.THIS) {
+		// only report error, this way we don't mess up the state of the parser
+		// it also makes parser errors much less noisy
 		if p.curClass == cls_NONE {
 			_ = p.parseErr(p.previous(), ThisNotInClass)
 		}
+		if p.curFN == ast.FN_STATIC {
+			_ = p.parseErr(p.previous(), ThisInStatic)
+		}
 		return &ast.This{Keyword: p.previous()}, nil
-	}
-
-	if p.match(token.FUN) {
+	} else if p.match(token.FUN) {
 		return p.lambda(ast.FN_LAMBDA)
-	}
-
-	if p.match(token.IDENTIFIER) {
+	} else if p.match(token.IDENTIFIER) {
 		return &ast.Variable{Name: p.previous()}, nil
-	}
-
-	if p.match(token.LPAREN) {
+	} else if p.match(token.LPAREN) {
 		expr, err := p.expression()
 		if err != nil {
 			return nil, err
@@ -698,8 +726,82 @@ func (p *Parser) primary() (ast.Expr, error) {
 			return nil, err
 		}
 		return &ast.Grouping{Expression: expr}, nil
+	} else if p.match(token.LSQR) {
+		sqr := p.previous()
+		elements, err := p.finishArray()
+		if err != nil {
+			return nil, err
+		}
+		return &ast.ArrayLiteral{Sqr: sqr, Elements: elements}, nil
+	} else if p.match(token.LBRACE) {
+		brace := p.previous()
+		pairs, err := p.finishHashMap()
+		if err != nil {
+			return nil, err
+		}
+		return &ast.HashLiteral{Brace: brace, Pairs: pairs}, nil
 	}
 	return nil, p.parseErr(p.peek(), "Expect expression")
+}
+
+func (p *Parser) finishIndex(iter ast.Expr) (ast.Expr, error) {
+	idx, err := p.expression()
+	if err != nil {
+		return nil, err
+	}
+	sqr, err := p.consume(token.RSQR, "Expect ']' after index")
+	if err != nil {
+		return nil, err
+	}
+	return &ast.IndexedGet{
+		Object: iter,
+		Sqr:    sqr,
+		Index:  idx,
+	}, nil
+}
+
+func (p *Parser) finishArray() ([]ast.Expr, error) {
+	elements := make([]ast.Expr, 0)
+	if !p.check(token.RSQR) {
+		for ok := true; ok; ok = p.match(token.COMMA) {
+			elm, err := p.expression()
+			if err != nil {
+				return nil, err
+			}
+			elements = append(elements, elm)
+		}
+	}
+	_, err := p.consume(token.RSQR, "Expect ']' after array elements")
+	if err != nil {
+		return nil, err
+	}
+	return elements, nil
+}
+
+func (p *Parser) finishHashMap() (map[ast.Expr]ast.Expr, error) {
+	pairs := make(map[ast.Expr]ast.Expr)
+	if !p.check(token.RBRACE) {
+		for ok := true; ok; ok = p.match(token.COMMA) {
+			key, err := p.expression()
+			if err != nil {
+				return nil, err
+			}
+			_, err = p.consume(token.COLON, "Expect ':' after hashmap key")
+			if err != nil {
+				return nil, err
+			}
+			val, err := p.expression()
+			if err != nil {
+				return nil, err
+			}
+			pairs[key] = val
+		}
+	}
+	_, err := p.consume(token.RBRACE, "Expect '}' after array elements")
+	if err != nil {
+		return nil, err
+	}
+	return pairs, nil
 }
 
 func (p *Parser) consume(kind token.TokenType, msg string) (*token.Token, error) {
