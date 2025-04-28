@@ -16,11 +16,14 @@ var NativeFns = map[string]NativeFn{
 	"string":   &StringFn{},
 	"printf":   &PrintFn{},
 	"parseNum": &ParseNumFn{},
+	"push":     &ArrPushFn{},
+	"delete":   &HashDelKeyFn{},
 }
 
 type ClockFn struct{}
 
-func (ClockFn) Call(intprt *Interpreter, args []any) (any, error) {
+// func (ClockFn) Call(intprt *Interpreter, args []any) (any, error) {
+func (ClockFn) Call(args ...any) (any, error) {
 	return float64(time.Now().UnixMilli()) / 1000, nil
 }
 
@@ -34,8 +37,9 @@ func (ClockFn) String() string {
 
 type StringFn struct{}
 
-func (StringFn) Call(intprt *Interpreter, args []any) (any, error) {
-	return fmt.Sprint(args[0]), nil
+// func (StringFn) Call(intprt *Interpreter, args []any) (any, error) {
+func (StringFn) Call(args ...any) (any, error) {
+	return fmt.Sprint(args[1]), nil
 }
 
 func (StringFn) Arity() int {
@@ -48,8 +52,9 @@ func (StringFn) String() string {
 
 type ParseNumFn struct{}
 
-func (ParseNumFn) Call(intprt *Interpreter, args []any) (any, error) {
-	if str, ok := args[0].(string); ok {
+// func (ParseNumFn) Call(intprt *Interpreter, args []any) (any, error) {
+func (ParseNumFn) Call(args ...any) (any, error) {
+	if str, ok := args[1].(string); ok {
 		num, err := strconv.ParseFloat(str, 64)
 		if err != nil {
 			return nil, err
@@ -69,8 +74,9 @@ func (ParseNumFn) String() string {
 
 type PrintFn struct{}
 
-func (PrintFn) Call(intprt *Interpreter, args []any) (any, error) {
-	fmt.Println(args...)
+// func (PrintFn) Call(intprt *Interpreter, args []any) (any, error) {
+func (PrintFn) Call(args ...any) (any, error) {
+	fmt.Println(args[1:]...)
 	return nil, nil
 }
 
@@ -84,8 +90,9 @@ func (PrintFn) String() string {
 
 type LenFn struct{}
 
-func (LenFn) Call(intprt *Interpreter, args []any) (any, error) {
-	switch t := args[0].(type) {
+// func (LenFn) Call(intprt *Interpreter, args []any) (any, error) {
+func (LenFn) Call(args ...any) (any, error) {
+	switch t := args[1].(type) {
 	case *LoxArray:
 		return float64(len(t.Items)), nil
 	case string:
@@ -103,4 +110,48 @@ func (LenFn) Arity() int {
 
 func (LenFn) String() string {
 	return "<native fn len>"
+}
+
+type ArrPushFn struct{}
+
+func (ArrPushFn) Call(args ...any) (any, error) {
+	switch arr := args[1].(type) {
+	case *LoxArray:
+		arr.Items = append(arr.Items, args[2])
+		return arr, nil
+	default:
+		return nil, fmt.Errorf("can only use 'push' on arrays: got '%s'", arr)
+	}
+}
+
+func (ArrPushFn) Arity() int {
+	return 2
+}
+
+func (ArrPushFn) String() string {
+	return "<native fn push>"
+}
+
+type HashDelKeyFn struct{}
+
+func (HashDelKeyFn) Call(args ...any) (any, error) {
+	switch hm := args[1].(type) {
+	case *LoxHashMap:
+		key, err := hm.hashObj(args[2])
+		if err != nil {
+			return nil, err
+		}
+		delete(hm.Pairs, key)
+		return nil, nil
+	default:
+		return nil, fmt.Errorf("can only use 'push' on arrays: got '%s'", hm)
+	}
+}
+
+func (HashDelKeyFn) Arity() int {
+	return 2
+}
+
+func (HashDelKeyFn) String() string {
+	return "<native fn delete>"
 }

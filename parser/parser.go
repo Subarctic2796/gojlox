@@ -75,6 +75,7 @@ func (p *Parser) declaration() (ast.Stmt, error) {
 	if p.match(token.CLASS) {
 		return p.classDeclaration()
 	}
+	// check for lambdas
 	if p.check(token.FUN) && p.checkNext(token.IDENTIFIER) {
 		_, err := p.consume(token.FUN, "")
 		if err != nil {
@@ -237,23 +238,17 @@ func (p *Parser) varDeclaration() (ast.Stmt, error) {
 func (p *Parser) statement() (ast.Stmt, error) {
 	if p.match(token.BREAK) {
 		return p.breakStatement()
-	}
-	if p.match(token.FOR) {
+	} else if p.match(token.FOR) {
 		return p.forStatement()
-	}
-	if p.match(token.IF) {
+	} else if p.match(token.IF) {
 		return p.ifStatement()
-	}
-	if p.match(token.PRINT) {
+	} else if p.match(token.PRINT) {
 		return p.printStatement()
-	}
-	if p.match(token.RETURN) {
+	} else if p.match(token.RETURN) {
 		return p.returnStatement()
-	}
-	if p.match(token.WHILE) {
+	} else if p.match(token.WHILE) {
 		return p.whileStatement()
-	}
-	if p.match(token.LBRACE) {
+	} else if p.match(token.LBRACE) {
 		block, err := p.block()
 		if err != nil {
 			return nil, err
@@ -480,7 +475,7 @@ func (p *Parser) assignment() (ast.Expr, error) {
 	if err != nil {
 		return nil, err
 	}
-	if p.match(token.EQ, token.PLUS_EQ, token.MINUS_EQ, token.SLASH_EQ, token.STAR_EQ) {
+	if p.match(token.EQ, token.PLUS_EQ, token.MINUS_EQ, token.SLASH_EQ, token.STAR_EQ, token.PERCENT_EQ) {
 		opr := p.previous()
 		val, err := p.assignment()
 		if err != nil {

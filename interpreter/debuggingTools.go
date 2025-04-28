@@ -35,7 +35,8 @@ type DumpAST struct {
 	stmts []ast.Stmt
 }
 
-func (d *DumpAST) Call(intprt *Interpreter, args []any) (any, error) {
+// func (d *DumpAST) Call(intprt *Interpreter, args []any) (any, error) {
+func (d *DumpAST) Call(args ...any) (any, error) {
 	for _, stmt := range d.stmts {
 		fmt.Println(stmt)
 	}

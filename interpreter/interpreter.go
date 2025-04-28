@@ -50,68 +50,6 @@ func (i *Interpreter) Resolve(expr ast.Expr, depth int) {
 	i.locals[expr] = depth
 }
 
-func (i *Interpreter) stringify(obj any) string {
-	if obj == nil {
-		return "nil"
-	}
-	return fmt.Sprint(obj)
-}
-
-func (i *Interpreter) lookUpVariable(name *token.Token, expr ast.Expr) (any, error) {
-	if dist, ok := i.locals[expr]; ok {
-		return i.env.GetAt(dist, name.Lexeme), nil
-	} else {
-		return i.Globals.Get(name)
-	}
-}
-
-func (i *Interpreter) isTruthy(obj any) bool {
-	if obj == nil {
-		return false
-	}
-	if bobj, ok := obj.(bool); ok {
-		return bobj
-	}
-	return true
-}
-
-func (i *Interpreter) isEqual(a any, b any) bool {
-	if a == nil && b == nil {
-		return true
-	}
-	if a == nil {
-		return false
-	}
-	return a == b
-}
-
-func (i *Interpreter) checkNumberOperand(oprtr *token.Token, opr any) (float64, error) {
-	if r, ok := opr.(float64); ok {
-		return r, nil
-	}
-	return 0, &RunTimeErr{
-		Tok: oprtr,
-		Msg: "Operand must be a number",
-	}
-}
-
-func (i *Interpreter) checkNumberOperands(oprtr *token.Token, lhs any, rhs any) (float64, float64, error) {
-	if l, lok := lhs.(float64); lok {
-		if r, rok := rhs.(float64); rok {
-			return l, r, nil
-		}
-	}
-	return 0, 0, &RunTimeErr{
-		Tok: oprtr,
-		Msg: "Operands must be a number",
-	}
-}
-
-func (i *Interpreter) reportRunTimeErr(msg error) {
-	fmt.Fprintln(os.Stderr, msg)
-	i.CurErr = msg
-}
-
 func (i *Interpreter) evaluate(exprNode ast.Expr) (any, error) {
 	switch expr := exprNode.(type) {
 	case *ast.ArrayLiteral:
@@ -458,6 +396,7 @@ func (i *Interpreter) exprCall(expr *ast.Call) (any, error) {
 		return nil, err
 	}
 	args := make([]any, 0, len(expr.Arguments))
+	args = append(args, i)
 	for _, arg := range expr.Arguments {
 		a, err := i.evaluate(arg)
 		if err != nil {
@@ -474,13 +413,13 @@ func (i *Interpreter) exprCall(expr *ast.Call) (any, error) {
 		}
 	}
 	if fn.Arity() == -1 {
-		return fn.Call(i, args)
+		return fn.Call(args...)
 	}
-	if len(args) != fn.Arity() {
-		msg := fmt.Sprintf("Expected %d arguments but got %d", fn.Arity(), len(args))
+	if len(args)-1 != fn.Arity() {
+		msg := fmt.Sprintf("Expected %d arguments but got %d", fn.Arity(), len(args)-1)
 		return nil, &RunTimeErr{Tok: expr.Paren, Msg: msg}
 	}
-	return fn.Call(i, args)
+	return fn.Call(args...)
 }
 
 func (i *Interpreter) exprGet(expr *ast.Get) (any, error) {
@@ -568,14 +507,16 @@ func (i *Interpreter) exprIndexGet(expr *ast.IndexedGet) (any, error) {
 		return nil, err
 	}
 	switch iter := obj.(type) {
-	case *LoxArray:
-		idx, err := i.checkIndex(expr.Sqr, expr.Index, len(iter.Items), "array or string")
+	case LoxIterable:
+		// idx, err := i.checkIndex(expr.Sqr, expr.Index, len(iter.Items), "array or string")
+		// interpret the index
+		idx, err := i.evaluate(expr.Index)
 		if err != nil {
 			return nil, err
 		}
-		return iter.Items[idx], nil
+		return iter.IndexGet(idx)
 	case string:
-		idx, err := i.checkIndex(expr.Sqr, expr.Index, len(iter), "array or string")
+		idx, err := i.checkIndex(expr.Sqr, expr.Index, len(iter), "string")
 		if err != nil {
 			return nil, err
 		}
@@ -583,9 +524,8 @@ func (i *Interpreter) exprIndexGet(expr *ast.IndexedGet) (any, error) {
 	default:
 		return nil, &RunTimeErr{
 			Tok: expr.Sqr,
-			Msg: "Can only index an array or string",
+			Msg: "Can only index an iterable type",
 		}
-
 	}
 }
 
@@ -595,7 +535,7 @@ func (i *Interpreter) exprIndexSet(expr *ast.IndexedSet) (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	iter, ok := obj.(*LoxIterable)
+	iter, ok := obj.(LoxIterable)
 	if !ok {
 		tmpErr.Msg = "Only iterables can be set using an index"
 		return nil, tmpErr
@@ -604,11 +544,17 @@ func (i *Interpreter) exprIndexSet(expr *ast.IndexedSet) (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	idx, err := i.checkIndex(expr.Sqr, expr.Index, len(iter.Items), "array")
+	idx, err := i.evaluate(expr.Index)
 	if err != nil {
 		return nil, err
 	}
-	iter.Items[idx] = val
+	err = iter.IndexSet(idx, val)
+	if err != nil {
+		return nil, &RunTimeErr{
+			Tok: expr.Sqr,
+			Msg: fmt.Sprint(err),
+		}
+	}
 	return val, nil
 }
 
@@ -668,11 +614,77 @@ func (i *Interpreter) checkIndex(sqr *token.Token, index ast.Expr, objlen int, k
 		}
 	}
 	idx := int(fidx)
-	if idx < 0 || idx > objlen-1 {
+	// support negative indexes
+	if idx < 0 {
+		return objlen - idx, nil
+	}
+	if idx > objlen-1 {
 		return 0, &RunTimeErr{
 			Tok: sqr,
-			Msg: fmt.Sprintf("Index out of bounds. index: %d, length: %d", objlen, idx),
+			Msg: fmt.Sprintf("Index out of bounds. index: %d, length: %d", idx, objlen),
 		}
 	}
 	return idx, nil
+}
+
+func (i *Interpreter) stringify(obj any) string {
+	if obj == nil {
+		return "nil"
+	}
+	return fmt.Sprint(obj)
+}
+
+func (i *Interpreter) lookUpVariable(name *token.Token, expr ast.Expr) (any, error) {
+	if dist, ok := i.locals[expr]; ok {
+		return i.env.GetAt(dist, name.Lexeme), nil
+	} else {
+		return i.Globals.Get(name)
+	}
+}
+
+func (i *Interpreter) isTruthy(obj any) bool {
+	if obj == nil {
+		return false
+	}
+	if bobj, ok := obj.(bool); ok {
+		return bobj
+	}
+	return true
+}
+
+func (i *Interpreter) isEqual(a any, b any) bool {
+	if a == nil && b == nil {
+		return true
+	}
+	if a == nil {
+		return false
+	}
+	return a == b
+}
+
+func (i *Interpreter) checkNumberOperand(oprtr *token.Token, opr any) (float64, error) {
+	if r, ok := opr.(float64); ok {
+		return r, nil
+	}
+	return 0, &RunTimeErr{
+		Tok: oprtr,
+		Msg: "Operand must be a number",
+	}
+}
+
+func (i *Interpreter) checkNumberOperands(oprtr *token.Token, lhs any, rhs any) (float64, float64, error) {
+	if l, lok := lhs.(float64); lok {
+		if r, rok := rhs.(float64); rok {
+			return l, r, nil
+		}
+	}
+	return 0, 0, &RunTimeErr{
+		Tok: oprtr,
+		Msg: "Operands must be a number",
+	}
+}
+
+func (i *Interpreter) reportRunTimeErr(msg error) {
+	fmt.Fprintln(os.Stderr, msg)
+	i.CurErr = msg
 }

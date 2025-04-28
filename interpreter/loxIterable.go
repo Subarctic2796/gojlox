@@ -1,6 +1,6 @@
 package interpreter
 
 type LoxIterable interface {
-	Get(index int) (any, error)
-	Set(index int) (any, error)
+	IndexGet(index any) (any, error)
+	IndexSet(index any, value any) error
 }

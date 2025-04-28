@@ -32,9 +32,7 @@ go run .
 ```
 
 # Currently working on
-- [ ] adding hashmaps
 - [ ] make `+=, -=, etc` work in `arr[2] += 1`
-- [ ] make indexing work properly
 
 # Current plans
 - [ ] add support for expressions in the repl
@@ -47,10 +45,12 @@ go run .
   - [ ] store scope info in ast nodes
 - [ ] add arrays and hashmaps
   - [x] add arrays
-  - [ ] add hashmaps
+  - [x] add hashmaps
   - [ ] add trailing comma support
-  - [ ] add `for of` loops.
-  - [ ] add slicing `print arr[2:5];` and negative indexing `print a[-2];`
+  - [ ] add fancy indexing
+    - [ ] add slicing `print arr[2:5];`
+    - [x] add negative indexing `print a[-2];`
+  - [ ] add `for in` loops.
 - [ ] make `;` optional
 - [ ] add ability to import other files
 - [ ] add type hints (want to make it statically typed if possible)
@@ -66,7 +66,6 @@ go run .
 - [ ] add native classes (act as modules maybe?)
 - [ ] back port clox variable handling ?
 - [ ] add compile step (?)
-- [ ] change LoxFn to be an interface instead, and have native functions be NativeFn and current LoxFn be UserFn structs
 - [ ] create Makefile
 - [ ] add better error messages
 - [ ] add `else if` branches and `switch` cases

@@ -10,4 +10,40 @@ func (la *LoxArray) String() string {
 	return fmt.Sprint(la.Items)
 }
 
-func (la *LoxArray) Iterable() {}
+func (la *LoxArray) checkIndex(index any) (int, error) {
+	fidx, ok := index.(float64)
+	if !ok {
+		return -1, fmt.Errorf("can only use numbers to index arrays")
+	}
+	idx := int(fidx)
+	if idx < 0 {
+		ogidx := idx
+		idx *= -1
+		idx = len(la.Items) - idx
+		// may still be negative in that case then it is out of bounds
+		if idx < 0 {
+			return -1, fmt.Errorf("index out of bounds. index: %d, length: %d", ogidx, len(la.Items))
+		}
+	}
+	if idx > len(la.Items)-1 {
+		return -1, fmt.Errorf("index out of bounds. index: %d, length: %d", idx, len(la.Items))
+	}
+	return idx, nil
+}
+
+func (la *LoxArray) IndexGet(index any) (any, error) {
+	idx, err := la.checkIndex(index)
+	if err != nil {
+		return nil, err
+	}
+	return la.Items[idx], nil
+}
+
+func (la *LoxArray) IndexSet(index any, value any) error {
+	idx, err := la.checkIndex(index)
+	if err != nil {
+		return err
+	}
+	la.Items[idx] = value
+	return nil
+}

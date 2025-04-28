@@ -26,7 +26,14 @@ func (fn *UserFn) Bind(inst *LoxInstance) *UserFn {
 	return &UserFn{fn.Name, fn.Func, env}
 }
 
-func (fn *UserFn) Call(intprt *Interpreter, args []any) (any, error) {
+// for user functions the first arg in `args` is implicitly an `*Interpreter`
+// func (fn *UserFn) Call(intprt *Interpreter, args []any) (any, error) {
+func (fn *UserFn) Call(args ...any) (any, error) {
+	intprt, ok := args[0].(*Interpreter)
+	if !ok {
+		panic("unreachable first argument of `args` must be an `*Interpreter`")
+	}
+	args = args[1:]
 	env := NewEnv(fn.Closure)
 	for i, param := range fn.Func.Params {
 		env.Define(param.Lexeme, args[i])

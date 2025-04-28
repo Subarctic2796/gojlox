@@ -26,11 +26,13 @@ func (lc *UserClass) String() string {
 	return fmt.Sprint(lc.Name)
 }
 
-func (lc *UserClass) Call(intprt *Interpreter, args []any) (any, error) {
+// func (lc *UserClass) Call(intprt *Interpreter, args []any) (any, error) {
+func (lc *UserClass) Call(args []any) (any, error) {
 	inst := NewLoxInstance(lc)
 	init := lc.FindMethod("init")
 	if init != nil {
-		_, _ = init.Bind(inst).Call(intprt, args)
+		_, _ = init.Bind(inst).Call(args)
+		// _, _ = init.Bind(inst).Call(intprt, args)
 	}
 	return inst, nil
 }
