@@ -32,12 +32,15 @@ go run .
 ```
 
 # Currently working on
-- [ ] make `+=, -=, etc` work in `arr[2] += 1`
+- [ ] add trailing comma support
 
 # Current plans
 - [ ] add support for expressions in the repl
 - [ ] improve performance
   - [ ] move some of the resolver checks to the parser
+	- [ ] `ErrAlreadyInScope` check
+	- [ ] `ErrLocalInitializesSelf` check
+	- [ ] `ErrLocalNotRead` check
   - [ ] use arrays instead of hashmaps for `Env` struct
   - [x] move away from visitor pattern, and just use straight type checks
   - [ ] precompute some binary nodes

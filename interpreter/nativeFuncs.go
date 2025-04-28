@@ -22,7 +22,6 @@ var NativeFns = map[string]NativeFn{
 
 type ClockFn struct{}
 
-// func (ClockFn) Call(intprt *Interpreter, args []any) (any, error) {
 func (ClockFn) Call(args ...any) (any, error) {
 	return float64(time.Now().UnixMilli()) / 1000, nil
 }
@@ -37,7 +36,6 @@ func (ClockFn) String() string {
 
 type StringFn struct{}
 
-// func (StringFn) Call(intprt *Interpreter, args []any) (any, error) {
 func (StringFn) Call(args ...any) (any, error) {
 	return fmt.Sprint(args[1]), nil
 }
@@ -52,7 +50,6 @@ func (StringFn) String() string {
 
 type ParseNumFn struct{}
 
-// func (ParseNumFn) Call(intprt *Interpreter, args []any) (any, error) {
 func (ParseNumFn) Call(args ...any) (any, error) {
 	if str, ok := args[1].(string); ok {
 		num, err := strconv.ParseFloat(str, 64)
@@ -74,7 +71,6 @@ func (ParseNumFn) String() string {
 
 type PrintFn struct{}
 
-// func (PrintFn) Call(intprt *Interpreter, args []any) (any, error) {
 func (PrintFn) Call(args ...any) (any, error) {
 	fmt.Println(args[1:]...)
 	return nil, nil
@@ -90,7 +86,6 @@ func (PrintFn) String() string {
 
 type LenFn struct{}
 
-// func (LenFn) Call(intprt *Interpreter, args []any) (any, error) {
 func (LenFn) Call(args ...any) (any, error) {
 	switch t := args[1].(type) {
 	case *LoxArray:

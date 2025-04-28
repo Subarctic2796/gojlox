@@ -264,23 +264,24 @@ func (p *Parser) breakStatement() (ast.Stmt, error) {
 		// it also makes parser errors much less noisy
 		_ = p.parseErr(p.previous(), "Must be in a loop to use 'break'")
 	}
+	keyword := p.previous()
 	_, err := p.consume(token.SEMICOLON, "Expect ';' after 'break'")
 	if err != nil {
 		return nil, err
 	}
-	return &ast.Control{Kind: ast.CNTRL_BREAK, Keyword: p.previous(), Value: nil}, nil
+	return &ast.Control{Keyword: keyword, Value: nil}, nil
 }
 
 func (p *Parser) returnStatement() (ast.Stmt, error) {
+	keyword := p.previous()
 	// only report error, this way we don't mess up the state of the parser
 	// it also makes parser errors much less noisy
 	switch p.curFN {
 	case ast.FN_NONE:
-		_ = p.parseErr(p.previous(), ReturnTopLevel)
+		_ = p.parseErr(keyword, ReturnTopLevel)
 	case ast.FN_INIT:
-		_ = p.parseErr(p.previous(), ReturnFromInit)
+		_ = p.parseErr(keyword, ReturnFromInit)
 	}
-	keyword := p.previous()
 	var val ast.Expr
 	var err error
 	if !p.check(token.SEMICOLON) {
@@ -293,7 +294,7 @@ func (p *Parser) returnStatement() (ast.Stmt, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &ast.Control{Kind: ast.CNTRL_RETURN, Keyword: keyword, Value: val}, nil
+	return &ast.Control{Keyword: keyword, Value: val}, nil
 }
 
 func (p *Parser) forStatement() (ast.Stmt, error) {
@@ -488,14 +489,14 @@ func (p *Parser) assignment() (ast.Expr, error) {
 			return &ast.Set{
 				Object: n.Object,
 				Name:   n.Name,
-				Value:  val,
+				Value:  p.desugarOprEQ(n, opr, val),
 			}, nil
 		case *ast.IndexedGet:
 			return &ast.IndexedSet{
 				Object: n.Object,
 				Sqr:    n.Sqr,
 				Index:  n.Index,
-				Value:  val,
+				Value:  p.desugarOprEQ(n, opr, val),
 			}, nil
 		}
 		// only report error, this way we don't mess up the state of the parser
@@ -503,6 +504,34 @@ func (p *Parser) assignment() (ast.Expr, error) {
 		_ = p.parseErr(opr, "Invalid assignment target")
 	}
 	return expr, nil
+}
+
+func (p *Parser) desugarOprEQ(get ast.Expr, opr *token.Token, val ast.Expr) ast.Expr {
+	// inst.a += 23;
+	// { inst.a = [ (inst.a) + 23 ] }
+	// ^Set       ^Bin     ^Get
+	oprType := token.NONE
+	switch opr.Kind {
+	case token.EQ:
+		return val
+	case token.PLUS_EQ:
+		oprType = token.PLUS
+	case token.MINUS_EQ:
+		oprType = token.MINUS
+	case token.SLASH_EQ:
+		oprType = token.SLASH
+	case token.STAR_EQ:
+		oprType = token.STAR
+	case token.PERCENT_EQ:
+		oprType = token.PERCENT
+	}
+	// [ (inst.a) + 23 ]
+	// ^Bin     ^Get
+	return &ast.Binary{
+		Left:     get,
+		Operator: token.NewToken(oprType, opr.Lexeme, nil, opr.Line),
+		Right:    val,
+	}
 }
 
 func (p *Parser) or() (ast.Expr, error) {
@@ -698,15 +727,16 @@ func (p *Parser) primary() (ast.Expr, error) {
 		}
 		return &ast.Super{Keyword: keyword, Method: method}, nil
 	} else if p.match(token.THIS) {
+		keyword := p.previous()
 		// only report error, this way we don't mess up the state of the parser
 		// it also makes parser errors much less noisy
 		if p.curClass == cls_NONE {
-			_ = p.parseErr(p.previous(), ThisNotInClass)
+			_ = p.parseErr(keyword, ThisNotInClass)
 		}
 		if p.curFN == ast.FN_STATIC {
-			_ = p.parseErr(p.previous(), ThisInStatic)
+			_ = p.parseErr(keyword, ThisInStatic)
 		}
-		return &ast.This{Keyword: p.previous()}, nil
+		return &ast.This{Keyword: keyword}, nil
 	} else if p.match(token.FUN) {
 		return p.lambda(ast.FN_LAMBDA)
 	} else if p.match(token.IDENTIFIER) {

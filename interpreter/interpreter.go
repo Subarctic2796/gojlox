@@ -141,7 +141,7 @@ func (i *Interpreter) execute(stmtNode ast.Stmt) (any, error) {
 		fmt.Println(i.stringify(val))
 		return nil, nil
 	case *ast.Control:
-		if stmt.Kind == ast.CNTRL_BREAK {
+		if stmt.Keyword.Kind == token.BREAK {
 			return nil, BreakErr
 		}
 		if stmt.Value != nil {

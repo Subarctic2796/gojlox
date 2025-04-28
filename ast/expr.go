@@ -180,7 +180,7 @@ type Super struct {
 }
 
 func (expr *Super) String() string {
-	return fmt.Sprintf("(super %s", expr.Method.Lexeme)
+	return fmt.Sprintf("(super %s)", expr.Method.Lexeme)
 }
 
 type This struct {
@@ -188,7 +188,7 @@ type This struct {
 }
 
 func (expr *This) String() string {
-	return "this"
+	return "(this)"
 }
 
 type Unary struct {

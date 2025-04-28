@@ -58,6 +58,7 @@ func (r *Resolver) resolveLocal(expr ast.Expr, name *token.Token, isRead bool) {
 
 func (r *Resolver) resolveFunction(fn *ast.Function) {
 	r.beginScope()
+	defer func() { r.endScope() }()
 	for _, param := range fn.Params {
 		r.declare(param)
 		r.define(param)
@@ -185,7 +186,7 @@ func (r *Resolver) resolveStmt(stmtNode ast.Stmt) {
 	case *ast.Print:
 		r.resolveExpr(stmt.Expression)
 	case *ast.Control:
-		if stmt.Kind == ast.CNTRL_RETURN && stmt.Value != nil {
+		if stmt.Keyword.Kind == token.RETURN && stmt.Value != nil {
 			r.resolveExpr(stmt.Value)
 		}
 		return

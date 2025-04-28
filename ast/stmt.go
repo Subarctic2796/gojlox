@@ -104,19 +104,18 @@ func (stmt *Print) String() string {
 }
 
 type Control struct {
-	Kind    ControlType
 	Keyword *token.Token
 	Value   Expr
 }
 
 func (stmt *Control) String() string {
-	switch stmt.Kind {
-	case CNTRL_RETURN:
+	switch stmt.Keyword.Kind {
+	case token.RETURN:
 		if stmt.Value == nil {
 			return "(return)"
 		}
 		return fmt.Sprintf("(return %s)", stmt.Value)
-	case CNTRL_BREAK:
+	case token.BREAK:
 		return "(break)"
 	default:
 		panic("unreachable")

@@ -27,7 +27,6 @@ func (fn *UserFn) Bind(inst *LoxInstance) *UserFn {
 }
 
 // for user functions the first arg in `args` is implicitly an `*Interpreter`
-// func (fn *UserFn) Call(intprt *Interpreter, args []any) (any, error) {
 func (fn *UserFn) Call(args ...any) (any, error) {
 	intprt, ok := args[0].(*Interpreter)
 	if !ok {
