@@ -75,6 +75,7 @@ func (l *Lox) Run(src string, intprt *interpreter.Interpreter) error {
 		l.HadErr = true
 		return err
 	}
+
 	err = intprt.Interpret(stmts)
 	if err != nil {
 		l.HadRunTimeErr = true

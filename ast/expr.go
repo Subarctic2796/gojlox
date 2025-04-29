@@ -67,11 +67,16 @@ func (expr *Call) String() string {
 type IndexedGet struct {
 	Object Expr
 	Sqr    *token.Token
-	Index  Expr
+	Start  Expr
+	Colon  *token.Token
+	Stop   Expr
 }
 
 func (expr *IndexedGet) String() string {
-	return fmt.Sprintf("(%s[%s])", expr.Object, expr.Index)
+	if expr.Stop != nil {
+		return fmt.Sprintf("(%s[%s:%s])", expr.Object, expr.Start, expr.Stop)
+	}
+	return fmt.Sprintf("(%s[%s])", expr.Object, expr.Start)
 }
 
 type Get struct {

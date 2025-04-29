@@ -30,7 +30,10 @@ func (lc *UserClass) Call(args ...any) (any, error) {
 	inst := NewLoxInstance(lc)
 	init := lc.FindMethod("init")
 	if init != nil {
-		_, _ = init.Bind(inst).Call(args...)
+		_, err := init.Bind(inst).Call(args...)
+		if err != nil {
+			return nil, err
+		}
 	}
 	return inst, nil
 }

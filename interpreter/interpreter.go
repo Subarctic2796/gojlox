@@ -471,7 +471,7 @@ func (i *Interpreter) exprSet(expr *ast.Set) (any, error) {
 func (i *Interpreter) exprSuper(expr *ast.Super) (any, error) {
 	dist := i.locals[expr]
 	superclass := i.env.GetAt(dist, "super").(*UserClass)
-	obj := i.env.GetAt(dist-1, "this").(*LoxInstance)
+	obj := i.env.GetAt(dist-1, "this").(*LoxInstance) // 'this' on super
 	method := superclass.FindMethod(expr.Method.Lexeme)
 	if method == nil {
 		return nil, &RunTimeErr{
@@ -508,19 +508,44 @@ func (i *Interpreter) exprIndexGet(expr *ast.IndexedGet) (any, error) {
 	}
 	switch iter := obj.(type) {
 	case LoxIterable:
-		// idx, err := i.checkIndex(expr.Sqr, expr.Index, len(iter.Items), "array or string")
-		// interpret the index
-		idx, err := i.evaluate(expr.Index)
-		if err != nil {
-			return nil, err
+		var start any = 0
+		if expr.Start != nil {
+			start, err = i.evaluate(expr.Start)
+			if err != nil {
+				return nil, err
+			}
 		}
-		return iter.IndexGet(idx)
+		if expr.Colon != nil {
+			var stop any = nil
+			if expr.Stop != nil {
+				stop, err = i.evaluate(expr.Start)
+				if err != nil {
+					return nil, err
+				}
+			}
+			return iter.IndexRange(start, stop)
+		}
+		return iter.IndexGet(start)
 	case string:
-		idx, err := i.checkIndex(expr.Sqr, expr.Index, len(iter), "string")
-		if err != nil {
-			return nil, err
+		start := 0
+		if expr.Start != nil {
+			start, err = i.checkIndex(expr.Sqr, expr.Start, len(iter), "string")
+			if err != nil {
+				return nil, err
+			}
 		}
-		return string(iter[idx]), nil
+		if expr.Colon != nil {
+			stop := len(iter)
+			if expr.Stop != nil {
+				stop, err = i.checkIndex(expr.Sqr, expr.Stop, len(iter), "string")
+				if err != nil {
+					return nil, err
+				}
+				return iter[start:stop], nil
+			}
+			return iter[start:stop], nil
+		}
+		return string(iter[start]), nil
 	default:
 		return nil, &RunTimeErr{
 			Tok: expr.Sqr,
@@ -616,7 +641,15 @@ func (i *Interpreter) checkIndex(sqr *token.Token, index ast.Expr, objlen int, k
 	idx := int(fidx)
 	// support negative indexes
 	if idx < 0 {
-		return objlen - idx, nil
+		ogIdx := idx
+		idx = objlen - (idx * -1)
+		if idx < 0 {
+			return 0, &RunTimeErr{
+				Tok: sqr,
+				Msg: fmt.Sprintf("Index out of bounds. index: %d, length: %d", ogIdx, objlen),
+			}
+		}
+		return idx, nil
 	}
 	if idx > objlen-1 {
 		return 0, &RunTimeErr{

@@ -32,7 +32,10 @@ go run .
 ```
 
 # Currently working on
-- [ ] add trailing comma support
+- [ ] add slicing `print arr[2:5];`
+- [ ] make instances hashable
+  - [ ] add id or uuid to instance that can then be used for the key
+- [ ] use arrays instead of hashmaps for `Env` struct
 
 # Current plans
 - [ ] add support for expressions in the repl
@@ -47,13 +50,15 @@ go run .
   - [ ] make real negative numbers
   - [ ] store scope info in ast nodes
 - [ ] add arrays and hashmaps
-  - [x] add arrays
+  - [x] add trailing comma support
   - [x] add hashmaps
-  - [ ] add trailing comma support
+    - [ ] make instances hashable
+  - [x] add arrays
   - [ ] add fancy indexing
     - [ ] add slicing `print arr[2:5];`
     - [x] add negative indexing `print a[-2];`
   - [ ] add `for in` loops.
+    - [ ] add indexed looping `for (var k, v in hashmap) printf(k, v);`
 - [ ] make `;` optional
 - [ ] add ability to import other files
 - [ ] add type hints (want to make it statically typed if possible)

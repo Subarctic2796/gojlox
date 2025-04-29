@@ -48,6 +48,8 @@ func (e *Env) Assign(name *token.Token, val any) error {
 		e.Values[name.Lexeme] = val
 		return nil
 	}
+	// if 'a' in global and it gets updated in a local scope
+	// then we have to update it in the correct scope
 	if e.Enclosing != nil {
 		return e.Enclosing.Assign(name, val)
 	}

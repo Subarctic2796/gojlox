@@ -18,8 +18,7 @@ func (la *LoxArray) checkIndex(index any) (int, error) {
 	idx := int(fidx)
 	if idx < 0 {
 		ogidx := idx
-		idx *= -1
-		idx = len(la.Items) - idx
+		idx = len(la.Items) - (idx * -1)
 		// may still be negative in that case then it is out of bounds
 		if idx < 0 {
 			return -1, fmt.Errorf("index out of bounds. index: %d, length: %d", ogidx, len(la.Items))
@@ -32,11 +31,31 @@ func (la *LoxArray) checkIndex(index any) (int, error) {
 }
 
 func (la *LoxArray) IndexGet(index any) (any, error) {
-	idx, err := la.checkIndex(index)
+	start, err := la.checkIndex(index)
 	if err != nil {
 		return nil, err
 	}
-	return la.Items[idx], nil
+	return la.Items[start], nil
+}
+
+func (la *LoxArray) IndexRange(startIndex, stopIndex any) (any, error) {
+	var err error
+	start := 0
+	if startIndex != nil {
+		start, err = la.checkIndex(startIndex)
+		if err != nil {
+			return nil, err
+		}
+	}
+	stop := len(la.Items)
+	if stopIndex != nil {
+		stop, err = la.checkIndex(stopIndex)
+		if err != nil {
+			return nil, err
+		}
+	}
+	// return &LoxArray{la.Items[start:stop]}, nil
+	return la.Items[start:stop], nil
 }
 
 func (la *LoxArray) IndexSet(index any, value any) error {

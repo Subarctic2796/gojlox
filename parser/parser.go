@@ -22,9 +22,9 @@ const (
 	SuperInStatic      = "Can't use 'super' in a static method"
 
 	// not used yet
-	AlreadyInScope       = "Already a variable with this name in this scope"
-	LocalInitializesSelf = "Can't read local variable in its own initializer"
-	LocalNotRead         = "Local variable is not used"
+	// AlreadyInScope       = "Already a variable with this name in this scope"
+	// LocalInitializesSelf = "Can't read local variable in its own initializer"
+	// LocalNotRead         = "Local variable is not used"
 )
 
 type clsType int
@@ -492,10 +492,13 @@ func (p *Parser) assignment() (ast.Expr, error) {
 				Value:  p.desugarOprEQ(n, opr, val),
 			}, nil
 		case *ast.IndexedGet:
+			if n.Stop != nil {
+				_ = p.parseErr(n.Sqr, "Can't use slicing to set values")
+			}
 			return &ast.IndexedSet{
 				Object: n.Object,
 				Sqr:    n.Sqr,
-				Index:  n.Index,
+				Index:  n.Start,
 				Value:  p.desugarOprEQ(n, opr, val),
 			}, nil
 		}
@@ -770,18 +773,47 @@ func (p *Parser) primary() (ast.Expr, error) {
 }
 
 func (p *Parser) finishIndex(iter ast.Expr) (ast.Expr, error) {
-	idx, err := p.expression()
-	if err != nil {
-		return nil, err
+	if p.match(token.RSQR) {
+		return nil, p.parseErr(p.previous(), "Expect an expression or ':' in an index expression")
 	}
-	sqr, err := p.consume(token.RSQR, "Expect ']' after index")
-	if err != nil {
-		return nil, err
+	var sqr *token.Token = nil
+	var colon *token.Token = nil
+	var err error
+	var startIdx ast.Expr = nil
+	if !p.check(token.COLON) {
+		// arr[s:?]
+		startIdx, err = p.expression()
+		if err != nil {
+			return nil, err
+		}
+	}
+	// arr[s?:?]
+	var stopIdx ast.Expr = nil
+	if p.match(token.COLON) {
+		colon = p.previous()
+		if !p.check(token.RSQR) {
+			stopIdx, err = p.expression()
+			if err != nil {
+				return nil, err
+			}
+		}
+		sqr, err = p.consume(token.RSQR, "Expect ']' after index")
+		if err != nil {
+			return nil, err
+		}
+	}
+	if sqr == nil {
+		sqr, err = p.consume(token.RSQR, "Expect ']' after index")
+		if err != nil {
+			return nil, err
+		}
 	}
 	return &ast.IndexedGet{
 		Object: iter,
 		Sqr:    sqr,
-		Index:  idx,
+		Start:  startIdx,
+		Colon:  colon,
+		Stop:   stopIdx,
 	}, nil
 }
 
@@ -789,6 +821,10 @@ func (p *Parser) finishArray() ([]ast.Expr, error) {
 	elements := make([]ast.Expr, 0)
 	if !p.check(token.RSQR) {
 		for ok := true; ok; ok = p.match(token.COMMA) {
+			// found trailing comma
+			if p.check(token.RSQR) {
+				break
+			}
 			elm, err := p.expression()
 			if err != nil {
 				return nil, err
@@ -807,6 +843,10 @@ func (p *Parser) finishHashMap() (map[ast.Expr]ast.Expr, error) {
 	pairs := make(map[ast.Expr]ast.Expr)
 	if !p.check(token.RBRACE) {
 		for ok := true; ok; ok = p.match(token.COMMA) {
+			// found trailing comma
+			if p.check(token.RBRACE) {
+				break
+			}
 			key, err := p.expression()
 			if err != nil {
 				return nil, err

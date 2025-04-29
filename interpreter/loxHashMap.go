@@ -44,6 +44,10 @@ func (lhm *LoxHashMap) IndexGet(index any) (any, error) {
 	return nil, fmt.Errorf("key '%s' not present", index)
 }
 
+func (lhm *LoxHashMap) IndexRange(start, stop any) (any, error) {
+	return nil, fmt.Errorf("can't use ranges on hashmaps")
+}
+
 func (lhm *LoxHashMap) IndexSet(index any, value any) error {
 	// index is LoxPair.Key
 	key, err := lhm.hashObj(index)

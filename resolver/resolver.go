@@ -131,7 +131,12 @@ func (r *Resolver) resolveExpr(exprNode ast.Expr) {
 		r.resolveHashMapPairs(expr.Pairs)
 	case *ast.IndexedGet:
 		r.resolveExpr(expr.Object)
-		r.resolveExpr(expr.Index)
+		if expr.Start != nil {
+			r.resolveExpr(expr.Start)
+		}
+		if expr.Stop != nil {
+			r.resolveExpr(expr.Stop)
+		}
 	case *ast.IndexedSet:
 		r.resolveExpr(expr.Object)
 		r.resolveExpr(expr.Index)
@@ -200,7 +205,7 @@ func (r *Resolver) resolveStmt(stmtNode ast.Stmt) {
 		r.resolveExpr(stmt.Condition)
 		r.resolveStmt(stmt.Body)
 	default:
-		panic(fmt.Sprintf("resolving is not implemented for %T", stmt))
+		panic(fmt.Sprintf("resolving is not implemented for '%T'", stmt))
 	}
 }
 
