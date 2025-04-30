@@ -22,12 +22,12 @@ func (lhm *LoxHashMap) hashObj(obj any) (uint, error) {
 		hasher.Write([]byte(val))
 		return uint(hasher.Sum64()), nil
 	case float64:
-		return uint(val), nil
+		return uint(val + 1), nil
 	case bool:
 		if val {
-			return 1, nil
+			return 3, nil
 		}
-		return 0, nil
+		return 5, nil
 	default:
 		return 0, fmt.Errorf("unhashable type '%T'", obj)
 	}

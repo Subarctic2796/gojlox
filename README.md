@@ -18,22 +18,10 @@ make build
 ./gojlox
 ```
 
-# Notes
-If you get a compiler error about anything relating to `ast` then you may need to regenerate the ast files.
-The `genAst.go` script uses the `os.Getwd` function from the standard library to find where to put the files
-it needs to generate. So, it has all the issues with using that function, it also doesn't handle symlinks. The
-script also assumes that a directory called `ast` is in the direct parent directory from where the script is run
-so make sure that that directory exists there.
-Once you run it, make sure to reformat the generated files.
-## Generating AST files
-```console
-cd tools
-go run .
-```
-
 # Currently working on
 - [ ] make instances hashable
   - [ ] maybe add id or uuid to instance that can then be used for the key
+- [ ] add ability to define multiple variables on the same line `var a, b, c = 1, "hi", true;`
 
 # Current plans
 - [ ] add support for expressions in the repl
@@ -55,7 +43,8 @@ go run .
   - [x] add fancy indexing
     - [x] add slicing `print arr[2:5];`
     - [x] add negative indexing `print a[-2];`
-  - [ ] add `for in` loops.
+  - [ ] add `in` keyword for arrays and hashmaps
+    - [ ] add `for in` loops.
     - [ ] add indexed looping `for (var k, v in hashmap) printf(k, v);`
 - [ ] make `;` optional
 - [ ] add ability to import other files
@@ -68,7 +57,7 @@ go run .
   - [ ] add pretty printer for ast
 - [ ] consolidate `Return`, `Break`, `Continue` Statements into `ControlStmt`
   - [ ] add `continue` keyword
-- [ ] remove `genAst.go` script
+- [x] remove `genAst.go` script
 - [ ] add native classes (act as modules maybe?)
 - [ ] back port clox variable handling ?
 - [ ] add compile step (?)

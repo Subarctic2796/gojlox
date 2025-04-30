@@ -17,9 +17,10 @@ const (
 	ThisNotInClass     = "Can't use 'this' outside of a class"
 	ThisInStatic       = "Can't use 'this' in a static function"
 	InitIsStatic       = "Can't use 'init' as a static function"
+	StaticNotInClass   = "Can't use 'static' outside of a class"
+	SuperInStatic      = "Can't use 'super' in a static method"
 	SuperNotInClass    = "Can't use 'super' outside of a class"
 	SuperNotInSubClass = "Can't use 'super' in a class with no superclass"
-	SuperInStatic      = "Can't use 'super' in a static method"
 
 	// not used yet
 	// AlreadyInScope       = "Already a variable with this name in this scope"
@@ -468,6 +469,9 @@ func (p *Parser) printStatement() (ast.Stmt, error) {
 }
 
 func (p *Parser) expression() (ast.Expr, error) {
+	if p.check(token.STATIC) {
+		return nil, p.parseErr(p.peek(), StaticNotInClass)
+	}
 	return p.assignment()
 }
 

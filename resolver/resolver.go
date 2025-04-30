@@ -46,10 +46,11 @@ func (r *Resolver) ResolveStmts(stmts []ast.Stmt) error {
 
 func (r *Resolver) resolveLocal(expr ast.Expr, name *token.Token, isRead bool) {
 	for i := len(r.scopes) - 1; i >= 0; i-- {
-		if _, ok := r.scopes[i][name.Lexeme]; ok {
+		scope := r.scopes[i]
+		if _, ok := scope[name.Lexeme]; ok {
 			r.intprt.Resolve(expr, len(r.scopes)-1-i)
 			if isRead {
-				r.scopes[i][name.Lexeme].status = vs_READ
+				scope[name.Lexeme].status = vs_READ
 			}
 			return
 		}
@@ -83,10 +84,11 @@ func (r *Resolver) declare(name *token.Token) {
 	if len(r.scopes) == 0 {
 		return
 	}
-	if _, ok := r.scopes[len(r.scopes)-1][name.Lexeme]; ok {
+	scope := r.scopes[len(r.scopes)-1]
+	if _, ok := scope[name.Lexeme]; ok {
 		r.reportTok(name, ErrAlreadyInScope)
 	}
-	r.scopes[len(r.scopes)-1][name.Lexeme] = &varInfo{name, vs_DECLARED}
+	scope[name.Lexeme] = &varInfo{name, vs_DECLARED}
 }
 
 func (r *Resolver) define(name *token.Token) {
