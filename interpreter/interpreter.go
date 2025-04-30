@@ -508,21 +508,22 @@ func (i *Interpreter) exprIndexGet(expr *ast.IndexedGet) (any, error) {
 	}
 	switch iter := obj.(type) {
 	case LoxIterable:
-		var start any = 0
+		isRange := expr.Colon != nil
+		var start any = 0.0
+		var stop any = nil
 		if expr.Start != nil {
 			start, err = i.evaluate(expr.Start)
 			if err != nil {
 				return nil, err
 			}
 		}
-		if expr.Colon != nil {
-			var stop any = nil
-			if expr.Stop != nil {
-				stop, err = i.evaluate(expr.Start)
-				if err != nil {
-					return nil, err
-				}
+		if expr.Stop != nil {
+			stop, err = i.evaluate(expr.Stop)
+			if err != nil {
+				return nil, err
 			}
+		}
+		if isRange {
 			return iter.IndexRange(start, stop)
 		}
 		return iter.IndexGet(start)

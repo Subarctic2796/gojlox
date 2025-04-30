@@ -1,0 +1,9 @@
+var a = [1, 2, 3, 4, 5, 6];
+var b = {"hello": 23, true: 12};
+var c = "hello how are you doing today?";
+
+print c[:-4];
+print a;
+print a[2:-1];
+print a[:];
+print b[true];

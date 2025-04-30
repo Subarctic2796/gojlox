@@ -13,7 +13,7 @@ func (la *LoxArray) String() string {
 func (la *LoxArray) checkIndex(index any) (int, error) {
 	fidx, ok := index.(float64)
 	if !ok {
-		return -1, fmt.Errorf("can only use numbers to index arrays")
+		return -1, fmt.Errorf("can only use numbers to index arrays got '%s'", index)
 	}
 	idx := int(fidx)
 	if idx < 0 {
@@ -47,15 +47,14 @@ func (la *LoxArray) IndexRange(startIndex, stopIndex any) (any, error) {
 			return nil, err
 		}
 	}
-	stop := len(la.Items)
-	if stopIndex != nil {
-		stop, err = la.checkIndex(stopIndex)
-		if err != nil {
-			return nil, err
-		}
+	if stopIndex == nil {
+		return &LoxArray{la.Items[start:]}, nil
 	}
-	// return &LoxArray{la.Items[start:stop]}, nil
-	return la.Items[start:stop], nil
+	stop, err := la.checkIndex(stopIndex)
+	if err != nil {
+		return nil, err
+	}
+	return &LoxArray{la.Items[start:stop]}, nil
 }
 
 func (la *LoxArray) IndexSet(index any, value any) error {

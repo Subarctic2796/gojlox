@@ -32,10 +32,8 @@ go run .
 ```
 
 # Currently working on
-- [ ] add slicing `print arr[2:5];`
 - [ ] make instances hashable
-  - [ ] add id or uuid to instance that can then be used for the key
-- [ ] use arrays instead of hashmaps for `Env` struct
+  - [ ] maybe add id or uuid to instance that can then be used for the key
 
 # Current plans
 - [ ] add support for expressions in the repl
@@ -54,8 +52,8 @@ go run .
   - [x] add hashmaps
     - [ ] make instances hashable
   - [x] add arrays
-  - [ ] add fancy indexing
-    - [ ] add slicing `print arr[2:5];`
+  - [x] add fancy indexing
+    - [x] add slicing `print arr[2:5];`
     - [x] add negative indexing `print a[-2];`
   - [ ] add `for in` loops.
     - [ ] add indexed looping `for (var k, v in hashmap) printf(k, v);`
@@ -80,3 +78,4 @@ go run .
 - [ ] add debugging support, dumping env, etc
 - [ ] add a native dummy function
 - [ ] setup github releases
+- [ ] add string interpolation
