@@ -1,6 +1,6 @@
 package ast
 
-//go:generate go tool stringer -type=FnType -output=common_strings.go
+//go:generate go tool stringer -type=FnType -output=common_strings.go -trimprefix=FN_
 
 type FnType int
 

@@ -18,6 +18,7 @@ const (
 	ThisInStatic       = "Can't use 'this' in a static function"
 	InitIsStatic       = "Can't use 'init' as a static function"
 	StaticNotInClass   = "Can't use 'static' outside of a class"
+	StaticNeedsMethod  = "'static' must be before a class method"
 	SuperInStatic      = "Can't use 'super' in a static method"
 	SuperNotInClass    = "Can't use 'super' outside of a class"
 	SuperNotInSubClass = "Can't use 'super' in a class with no superclass"
@@ -470,7 +471,12 @@ func (p *Parser) printStatement() (ast.Stmt, error) {
 
 func (p *Parser) expression() (ast.Expr, error) {
 	if p.check(token.STATIC) {
-		return nil, p.parseErr(p.peek(), StaticNotInClass)
+		switch p.curClass {
+		case cls_NONE:
+			return nil, p.parseErr(p.peek(), StaticNotInClass)
+		default:
+			return nil, p.parseErr(p.peek(), StaticNeedsMethod)
+		}
 	}
 	return p.assignment()
 }
