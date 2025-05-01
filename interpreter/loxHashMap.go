@@ -45,7 +45,7 @@ func (lhm *LoxHashMap) IndexGet(index any) (any, error) {
 }
 
 func (lhm *LoxHashMap) IndexRange(start, stop any) (any, error) {
-	return nil, fmt.Errorf("can't use ranges on hashmaps")
+	return nil, RangeHashMapErr
 }
 
 func (lhm *LoxHashMap) IndexSet(index any, value any) error {

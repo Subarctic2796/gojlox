@@ -15,7 +15,10 @@ func (re *ReturnErr) Error() string {
 	return "Return Error"
 }
 
-var BreakErr = errors.New("Break Error")
+var (
+	BreakErr        = errors.New("Break Error")
+	RangeHashMapErr = errors.New("can't use ranges on hashmaps")
+)
 
 type RunTimeErr struct {
 	Tok *token.Token

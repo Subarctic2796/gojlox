@@ -16,18 +16,14 @@ func (la *LoxArray) checkIndex(index any) (int, error) {
 		return -1, fmt.Errorf("can only use numbers to index arrays got '%s'", index)
 	}
 	idx := int(fidx)
+	ogidx := idx
 	if idx < 0 {
-		ogidx := idx
-		idx = len(la.Items) - (idx * -1)
-		// may still be negative in that case then it is out of bounds
-		if idx < 0 {
-			return -1, fmt.Errorf("index out of bounds. index: %d, length: %d", ogidx, len(la.Items))
-		}
+		idx = len(la.Items) + idx
 	}
-	if idx > len(la.Items)-1 {
-		return -1, fmt.Errorf("index out of bounds. index: %d, length: %d", idx, len(la.Items))
+	if idx >= 0 && idx < len(la.Items) {
+		return idx, nil
 	}
-	return idx, nil
+	return -1, fmt.Errorf("index out of bounds. index: %d, length: %d", ogidx, len(la.Items))
 }
 
 func (la *LoxArray) IndexGet(index any) (any, error) {

@@ -52,6 +52,36 @@ func (i *Interpreter) Resolve(expr ast.Expr, depth int) {
 
 func (i *Interpreter) evaluate(exprNode ast.Expr) (any, error) {
 	switch expr := exprNode.(type) {
+	case *ast.Assign:
+		return i.evalAssign(expr)
+	case *ast.Binary:
+		return i.evalBinary(expr)
+	case *ast.Call:
+		return i.evalCall(expr)
+	case *ast.Get:
+		return i.evalGet(expr)
+	case *ast.Grouping:
+		return i.evaluate(expr.Expression)
+	case *ast.HashLiteral:
+		return i.evalHashLiteral(expr)
+	case *ast.IndexedGet:
+		return i.evalIndexGet(expr)
+	case *ast.IndexedSet:
+		return i.evalIndexSet(expr)
+	case *ast.Set:
+		return i.evalSet(expr)
+	case *ast.Super:
+		return i.evalSuper(expr)
+	case *ast.Unary:
+		return i.evalUnary(expr)
+	case *ast.This:
+		return i.lookUpVariable(expr.Keyword, expr)
+	case *ast.Variable:
+		return i.lookUpVariable(expr.Name, expr)
+	case *ast.Lambda:
+		return NewUserFn("", expr.Func, i.env), nil
+	case *ast.Literal:
+		return expr.Value, nil
 	case *ast.ArrayLiteral:
 		items := make([]any, 0, len(expr.Elements))
 		for _, elm := range expr.Elements {
@@ -62,26 +92,6 @@ func (i *Interpreter) evaluate(exprNode ast.Expr) (any, error) {
 			items = append(items, e)
 		}
 		return &LoxArray{items}, nil
-	case *ast.Assign:
-		return i.exprAssign(expr)
-	case *ast.Binary:
-		return i.exprBinary(expr)
-	case *ast.Call:
-		return i.exprCall(expr)
-	case *ast.Get:
-		return i.exprGet(expr)
-	case *ast.Grouping:
-		return i.evaluate(expr.Expression)
-	case *ast.HashLiteral:
-		return i.exprHashLiteral(expr)
-	case *ast.IndexedGet:
-		return i.exprIndexGet(expr)
-	case *ast.IndexedSet:
-		return i.exprIndexSet(expr)
-	case *ast.Lambda:
-		return NewUserFn("", expr.Func, i.env), nil
-	case *ast.Literal:
-		return expr.Value, nil
 	case *ast.Logical:
 		lhs, err := i.evaluate(expr.Left)
 		if err != nil {
@@ -97,16 +107,6 @@ func (i *Interpreter) evaluate(exprNode ast.Expr) (any, error) {
 			}
 		}
 		return i.evaluate(expr.Right)
-	case *ast.Set:
-		return i.exprSet(expr)
-	case *ast.Super:
-		return i.exprSuper(expr)
-	case *ast.This:
-		return i.lookUpVariable(expr.Keyword, expr)
-	case *ast.Unary:
-		return i.exprUnary(expr)
-	case *ast.Variable:
-		return i.lookUpVariable(expr.Name, expr)
 	default:
 		panic(fmt.Sprintf("evaluate is unimplemented for '%T'", expr))
 	}
@@ -121,18 +121,16 @@ func (i *Interpreter) execute(stmtNode ast.Stmt) (any, error) {
 	case *ast.Class:
 		return i.stmtClass(stmt)
 	case *ast.Expression:
-		_, err = i.evaluate(stmt.Expression)
-		if err != nil {
-			return nil, err
-		}
-		return nil, nil
+		return i.evaluate(stmt.Expression)
+	case *ast.If:
+		return i.stmtIf(stmt)
+	case *ast.While:
+		return i.stmtWhile(stmt)
 	case *ast.Function:
 		name := stmt.Name.Lexeme
 		fn := NewUserFn(name, stmt, i.env)
 		i.env.Define(name, fn)
 		return nil, nil
-	case *ast.If:
-		return i.stmtIf(stmt)
 	case *ast.Print:
 		val, err = i.evaluate(stmt.Expression)
 		if err != nil {
@@ -160,8 +158,6 @@ func (i *Interpreter) execute(stmtNode ast.Stmt) (any, error) {
 		}
 		i.env.Define(stmt.Name.Lexeme, val)
 		return nil, nil
-	case *ast.While:
-		return i.stmtWhile(stmt)
 	default:
 		panic(fmt.Sprintf("execute is unimplemented for '%T'", stmt))
 	}
@@ -194,15 +190,9 @@ func (i *Interpreter) stmtIf(stmt *ast.If) (any, error) {
 		return nil, err
 	}
 	if i.isTruthy(cond) {
-		_, err := i.execute(stmt.ThenBranch)
-		if err != nil {
-			return nil, err
-		}
+		return i.execute(stmt.ThenBranch)
 	} else if stmt.ElseBranch != nil {
-		_, err := i.execute(stmt.ElseBranch)
-		if err != nil {
-			return nil, err
-		}
+		return i.execute(stmt.ElseBranch)
 	}
 	return nil, nil
 }
@@ -256,7 +246,7 @@ func (i *Interpreter) executeBlock(stmts []ast.Stmt, env *Env) (any, error) {
 	return nil, nil
 }
 
-func (i *Interpreter) exprAssign(expr *ast.Assign) (any, error) {
+func (i *Interpreter) evalAssign(expr *ast.Assign) (any, error) {
 	val, err := i.evaluate(expr.Value)
 	if err != nil {
 		return nil, err
@@ -283,7 +273,7 @@ func (i *Interpreter) exprAssign(expr *ast.Assign) (any, error) {
 		i.tmpBin.Right = &ast.Literal{Value: val}
 		i.tmpBin.Operator.Kind = oprType
 		i.tmpBin.Operator.Line = expr.Operator.Line
-		val, err = i.exprBinary(i.tmpBin)
+		val, err = i.evalBinary(i.tmpBin)
 		if err != nil {
 			return nil, err
 		}
@@ -299,7 +289,7 @@ func (i *Interpreter) exprAssign(expr *ast.Assign) (any, error) {
 	return val, nil
 }
 
-func (i *Interpreter) exprBinary(expr *ast.Binary) (any, error) {
+func (i *Interpreter) evalBinary(expr *ast.Binary) (any, error) {
 	lhs, err := i.evaluate(expr.Left)
 	if err != nil {
 		return nil, err
@@ -362,10 +352,7 @@ func (i *Interpreter) exprBinary(expr *ast.Binary) (any, error) {
 			return nil, err
 		}
 		if r == 0.0 {
-			return nil, &RunTimeErr{
-				Tok: expr.Operator,
-				Msg: "Division by 0",
-			}
+			return nil, &RunTimeErr{Tok: expr.Operator, Msg: "Division by 0"}
 		}
 		return l / r, nil
 	case token.PLUS:
@@ -390,7 +377,7 @@ func (i *Interpreter) exprBinary(expr *ast.Binary) (any, error) {
 	return nil, nil
 }
 
-func (i *Interpreter) exprCall(expr *ast.Call) (any, error) {
+func (i *Interpreter) evalCall(expr *ast.Call) (any, error) {
 	callee, err := i.evaluate(expr.Callee)
 	if err != nil {
 		return nil, err
@@ -422,7 +409,7 @@ func (i *Interpreter) exprCall(expr *ast.Call) (any, error) {
 	return fn.Call(args...)
 }
 
-func (i *Interpreter) exprGet(expr *ast.Get) (any, error) {
+func (i *Interpreter) evalGet(expr *ast.Get) (any, error) {
 	obj, err := i.evaluate(expr.Object)
 	if err != nil {
 		return nil, err
@@ -448,7 +435,7 @@ func (i *Interpreter) exprGet(expr *ast.Get) (any, error) {
 	}
 }
 
-func (i *Interpreter) exprSet(expr *ast.Set) (any, error) {
+func (i *Interpreter) evalSet(expr *ast.Set) (any, error) {
 	obj, err := i.evaluate(expr.Object)
 	if err != nil {
 		return nil, err
@@ -468,7 +455,7 @@ func (i *Interpreter) exprSet(expr *ast.Set) (any, error) {
 	return val, nil
 }
 
-func (i *Interpreter) exprSuper(expr *ast.Super) (any, error) {
+func (i *Interpreter) evalSuper(expr *ast.Super) (any, error) {
 	dist := i.locals[expr]
 	superclass := i.env.GetAt(dist, "super").(*UserClass)
 	obj := i.env.GetAt(dist-1, "this").(*LoxInstance) // 'this' on super
@@ -482,7 +469,7 @@ func (i *Interpreter) exprSuper(expr *ast.Super) (any, error) {
 	return method.Bind(obj), nil
 }
 
-func (i *Interpreter) exprUnary(expr *ast.Unary) (any, error) {
+func (i *Interpreter) evalUnary(expr *ast.Unary) (any, error) {
 	rhs, err := i.evaluate(expr.Right)
 	if err != nil {
 		return nil, err
@@ -501,14 +488,14 @@ func (i *Interpreter) exprUnary(expr *ast.Unary) (any, error) {
 	return nil, nil
 }
 
-func (i *Interpreter) exprIndexGet(expr *ast.IndexedGet) (any, error) {
+func (i *Interpreter) evalIndexGet(expr *ast.IndexedGet) (any, error) {
 	obj, err := i.evaluate(expr.Object)
 	if err != nil {
 		return nil, err
 	}
+	isRange := expr.Colon != nil
 	switch iter := obj.(type) {
 	case LoxIterable:
-		isRange := expr.Colon != nil
 		var start any = 0.0
 		var stop any = nil
 		if expr.Start != nil {
@@ -523,10 +510,16 @@ func (i *Interpreter) exprIndexGet(expr *ast.IndexedGet) (any, error) {
 				return nil, err
 			}
 		}
+		var val any
 		if isRange {
-			return iter.IndexRange(start, stop)
+			val, err = iter.IndexRange(start, stop)
+		} else {
+			val, err = iter.IndexGet(start)
 		}
-		return iter.IndexGet(start)
+		if err != nil {
+			return nil, &RunTimeErr{Tok: expr.Sqr, Msg: err.Error()}
+		}
+		return val, nil
 	case string:
 		start := 0
 		if expr.Start != nil {
@@ -535,15 +528,14 @@ func (i *Interpreter) exprIndexGet(expr *ast.IndexedGet) (any, error) {
 				return nil, err
 			}
 		}
-		if expr.Colon != nil {
-			stop := len(iter)
-			if expr.Stop != nil {
-				stop, err = i.checkIndex(expr.Sqr, expr.Stop, len(iter), "string")
-				if err != nil {
-					return nil, err
-				}
-				return iter[start:stop], nil
+		stop := len(iter)
+		if expr.Stop != nil {
+			stop, err = i.checkIndex(expr.Sqr, expr.Stop, len(iter), "string")
+			if err != nil {
+				return nil, err
 			}
+		}
+		if isRange {
 			return iter[start:stop], nil
 		}
 		return string(iter[start]), nil
@@ -555,7 +547,7 @@ func (i *Interpreter) exprIndexGet(expr *ast.IndexedGet) (any, error) {
 	}
 }
 
-func (i *Interpreter) exprIndexSet(expr *ast.IndexedSet) (any, error) {
+func (i *Interpreter) evalIndexSet(expr *ast.IndexedSet) (any, error) {
 	tmpErr := &RunTimeErr{Tok: expr.Sqr, Msg: ""}
 	obj, err := i.evaluate(expr.Object)
 	if err != nil {
@@ -576,15 +568,12 @@ func (i *Interpreter) exprIndexSet(expr *ast.IndexedSet) (any, error) {
 	}
 	err = iter.IndexSet(idx, val)
 	if err != nil {
-		return nil, &RunTimeErr{
-			Tok: expr.Sqr,
-			Msg: fmt.Sprint(err),
-		}
+		return nil, &RunTimeErr{Tok: expr.Sqr, Msg: fmt.Sprint(err)}
 	}
 	return val, nil
 }
 
-func (i *Interpreter) exprHashLiteral(expr *ast.HashLiteral) (any, error) {
+func (i *Interpreter) evalHashLiteral(expr *ast.HashLiteral) (any, error) {
 	pairs := make(map[uint]*LoxPair)
 	for key, val := range expr.Pairs {
 		k, err := i.evaluate(key)
@@ -611,12 +600,12 @@ func (i *Interpreter) hashObj(obj any, brace *token.Token) (uint, error) {
 		hasher.Write([]byte(val))
 		return uint(hasher.Sum64()), nil
 	case float64:
-		return uint(val), nil
+		return uint(val + 1), nil
 	case bool:
 		if val {
-			return 1, nil
+			return 3, nil
 		}
-		return 0, nil
+		return 5, nil
 	case *LoxInstance:
 		return val.Hash(), nil
 	default:
@@ -627,38 +616,39 @@ func (i *Interpreter) hashObj(obj any, brace *token.Token) (uint, error) {
 	}
 }
 
-func (i *Interpreter) checkIndex(sqr *token.Token, index ast.Expr, objlen int, kind string) (int, error) {
+func (i *Interpreter) checkIndex(sqr *token.Token, index ast.Expr, cnt int, kind string) (int, error) {
 	fdx, err := i.evaluate(index)
 	if err != nil {
 		return 0, err
 	}
-	fidx, ok := fdx.(float64)
-	if !ok {
+	idx, err := i.checkInt(fdx)
+	if err != nil {
 		return 0, &RunTimeErr{
 			Tok: sqr,
-			Msg: fmt.Sprintf("Can only use numbers to index an %s", kind),
+			Msg: fmt.Sprintf("Can only use integers to index an %s", kind),
 		}
 	}
-	idx := int(fidx)
+	ogIdx := idx
 	// support negative indexes
 	if idx < 0 {
-		ogIdx := idx
-		idx = objlen - (idx * -1)
-		if idx < 0 {
-			return 0, &RunTimeErr{
-				Tok: sqr,
-				Msg: fmt.Sprintf("Index out of bounds. index: %d, length: %d", ogIdx, objlen),
-			}
-		}
+		idx = cnt + idx
+	}
+	if idx >= 0 && idx < cnt {
 		return idx, nil
 	}
-	if idx > objlen-1 {
-		return 0, &RunTimeErr{
-			Tok: sqr,
-			Msg: fmt.Sprintf("Index out of bounds. index: %d, length: %d", idx, objlen),
+	return 0, &RunTimeErr{
+		Tok: sqr,
+		Msg: fmt.Sprintf("Index out of bounds. index: %d, length: %d", ogIdx, cnt),
+	}
+}
+
+func (i *Interpreter) checkInt(val any) (int, error) {
+	if fval, ok := val.(float64); ok {
+		if fval == float64(int(fval)) {
+			return int(fval), nil
 		}
 	}
-	return idx, nil
+	return 0, fmt.Errorf("'%s' is not a integer", val)
 }
 
 func (i *Interpreter) stringify(obj any) string {
@@ -700,10 +690,7 @@ func (i *Interpreter) checkNumberOperand(oprtr *token.Token, opr any) (float64, 
 	if r, ok := opr.(float64); ok {
 		return r, nil
 	}
-	return 0, &RunTimeErr{
-		Tok: oprtr,
-		Msg: "Operand must be a number",
-	}
+	return 0, &RunTimeErr{Tok: oprtr, Msg: "Operand must be a number"}
 }
 
 func (i *Interpreter) checkNumberOperands(oprtr *token.Token, lhs any, rhs any) (float64, float64, error) {
@@ -712,10 +699,7 @@ func (i *Interpreter) checkNumberOperands(oprtr *token.Token, lhs any, rhs any) 
 			return l, r, nil
 		}
 	}
-	return 0, 0, &RunTimeErr{
-		Tok: oprtr,
-		Msg: "Operands must be a number",
-	}
+	return 0, 0, &RunTimeErr{Tok: oprtr, Msg: "Operands must be a number"}
 }
 
 func (i *Interpreter) reportRunTimeErr(msg error) {
