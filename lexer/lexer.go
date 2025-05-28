@@ -222,18 +222,14 @@ func (l *Lexer) peek() rune {
 	return l.src[l.cur]
 }
 
-func (l *Lexer) isAtEnd() bool {
-	return l.cur >= len(l.src)
-}
+func (l *Lexer) isAtEnd() bool { return l.cur >= len(l.src) }
 
 func (l *Lexer) advance() rune {
 	l.cur++
 	return l.src[l.cur-1]
 }
 
-func (l *Lexer) addToken(kind token.TokenType) {
-	l.addTokenWithLit(kind, nil)
-}
+func (l *Lexer) addToken(kind token.TokenType) { l.addTokenWithLit(kind, nil) }
 
 func (l *Lexer) addTokenWithLit(kind token.TokenType, lit any) {
 	txt := string(l.src[l.start:l.cur])

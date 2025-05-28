@@ -897,10 +897,6 @@ func (p *Parser) parseErr(tok *token.Token, msg string) error {
 	return err
 }
 
-func (p *Parser) previous() *token.Token {
-	return p.tokens[p.cur-1]
-}
-
 func (p *Parser) match(kinds ...token.TokenType) bool {
 	if slices.ContainsFunc(kinds, p.check) {
 		p.advance()
@@ -933,13 +929,9 @@ func (p *Parser) checkNext(kind token.TokenType) bool {
 	return p.tokens[p.cur+1].Kind == kind
 }
 
-func (p *Parser) peek() *token.Token {
-	return p.tokens[p.cur]
-}
-
-func (p *Parser) isAtEnd() bool {
-	return p.peek().Kind == token.EOF
-}
+func (p *Parser) previous() *token.Token { return p.tokens[p.cur-1] }
+func (p *Parser) peek() *token.Token     { return p.tokens[p.cur] }
+func (p *Parser) isAtEnd() bool          { return p.peek().Kind == token.EOF }
 
 func (p *Parser) synchronise() {
 	p.advance()

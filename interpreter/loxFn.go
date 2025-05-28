@@ -6,10 +6,6 @@ import (
 	"github.com/Subarctic2796/gojlox/ast"
 )
 
-type LoxFn interface {
-	LoxFnType() ast.FnType
-}
-
 type UserFn struct {
 	Name    string
 	Func    *ast.Function
@@ -28,10 +24,7 @@ func (fn *UserFn) Bind(inst *LoxInstance) *UserFn {
 
 // for user functions the first arg in `args` is implicitly an `*Interpreter`
 func (fn *UserFn) Call(args ...any) (any, error) {
-	intprt, ok := args[0].(*Interpreter)
-	if !ok {
-		panic("unreachable first argument of `args` must be an `*Interpreter`")
-	}
+	intprt := args[0].(*Interpreter)
 	args = args[1:]
 	env := NewEnv(fn.Closure)
 	for i, param := range fn.Func.Params {
@@ -76,8 +69,4 @@ func (fn *UserFn) String() string {
 	default:
 		panic("[unreachable] can't have a function that is of type none")
 	}
-}
-
-func (fn *UserFn) LoxFnType() ast.FnType {
-	return fn.Func.Kind
 }

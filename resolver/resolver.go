@@ -59,12 +59,12 @@ func (r *Resolver) resolveLocal(expr ast.Expr, name *token.Token, isRead bool) {
 
 func (r *Resolver) resolveFunction(fn *ast.Function) {
 	r.beginScope()
-	defer func() { r.endScope() }()
 	for _, param := range fn.Params {
 		r.declare(param)
 		r.define(param)
 	}
 	_ = r.ResolveStmts(fn.Body)
+	r.endScope()
 }
 
 func (r *Resolver) beginScope() {
@@ -130,7 +130,19 @@ func (r *Resolver) resolveExpr(exprNode ast.Expr) {
 	case *ast.Grouping:
 		r.resolveExpr(expr.Expression)
 	case *ast.HashLiteral:
-		r.resolveHashMapPairs(expr.Pairs)
+		for k, v := range expr.Pairs {
+			switch kt := k.(type) {
+			case *ast.ArrayLiteral:
+				r.reportTok(kt.Sqr, ErrUnHashAble)
+			case *ast.HashLiteral:
+				r.reportTok(kt.Brace, ErrUnHashAble)
+			case *ast.Lambda:
+				r.reportTok(kt.Func.Name, ErrUnHashAble)
+			default:
+				r.resolveExpr(k)
+			}
+			r.resolveExpr(v)
+		}
 	case *ast.IndexedGet:
 		r.resolveExpr(expr.Object)
 		if expr.Start != nil {
@@ -175,9 +187,26 @@ func (r *Resolver) resolveExpr(exprNode ast.Expr) {
 func (r *Resolver) resolveStmt(stmtNode ast.Stmt) {
 	switch stmt := stmtNode.(type) {
 	case *ast.Block:
-		r.stmtBlock(stmt)
+		r.beginScope()
+		_ = r.ResolveStmts(stmt.Statements)
+		r.endScope()
 	case *ast.Class:
-		r.stmtClass(stmt)
+		r.declare(stmt.Name)
+		r.define(stmt.Name)
+		if stmt.Superclass != nil {
+			r.resolveExpr(stmt.Superclass)
+			r.beginScope()
+			r.scopes[len(r.scopes)-1]["super"] = &varInfo{stmt.Superclass.Name, vs_IMPLICIT}
+		}
+		r.beginScope()
+		r.scopes[len(r.scopes)-1]["this"] = &varInfo{stmt.Name, vs_IMPLICIT}
+		for _, method := range stmt.Methods {
+			r.resolveFunction(method)
+		}
+		r.endScope()
+		if stmt.Superclass != nil {
+			r.endScope()
+		}
 	case *ast.Expression:
 		r.resolveExpr(stmt.Expression)
 	case *ast.Function:
@@ -208,48 +237,5 @@ func (r *Resolver) resolveStmt(stmtNode ast.Stmt) {
 		r.resolveStmt(stmt.Body)
 	default:
 		panic(fmt.Sprintf("resolving is not implemented for '%T'", stmt))
-	}
-}
-
-func (r *Resolver) resolveHashMapPairs(pairs map[ast.Expr]ast.Expr) {
-	for k, v := range pairs {
-		switch kt := k.(type) {
-		case *ast.ArrayLiteral:
-			r.reportTok(kt.Sqr, ErrUnHashAble)
-		case *ast.HashLiteral:
-			r.reportTok(kt.Brace, ErrUnHashAble)
-		case *ast.Lambda:
-			r.reportTok(kt.Func.Name, ErrUnHashAble)
-		default:
-			r.resolveExpr(k)
-		}
-		r.resolveExpr(v)
-	}
-}
-
-func (r *Resolver) stmtBlock(stmt *ast.Block) {
-	r.beginScope()
-	defer func() { r.endScope() }()
-	_ = r.ResolveStmts(stmt.Statements)
-}
-
-func (r *Resolver) stmtClass(stmt *ast.Class) {
-	r.declare(stmt.Name)
-	r.define(stmt.Name)
-	if stmt.Superclass != nil {
-		r.resolveExpr(stmt.Superclass)
-		r.beginScope()
-		r.scopes[len(r.scopes)-1]["super"] = &varInfo{stmt.Superclass.Name, vs_IMPLICIT}
-	}
-	r.beginScope()
-	defer func() {
-		r.endScope()
-		if stmt.Superclass != nil {
-			r.endScope()
-		}
-	}()
-	r.scopes[len(r.scopes)-1]["this"] = &varInfo{stmt.Name, vs_IMPLICIT}
-	for _, method := range stmt.Methods {
-		r.resolveFunction(method)
 	}
 }
