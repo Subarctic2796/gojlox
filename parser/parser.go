@@ -278,13 +278,10 @@ func (p *Parser) returnStatement() (ast.Stmt, error) {
 	keyword := p.previous()
 	// only report error, this way we don't mess up the state of the parser
 	// it also makes parser errors much less noisy
-	switch p.curFN {
-	case ast.FN_NONE:
+	if p.curFN == ast.FN_NONE {
 		_ = p.parseErr(keyword, ReturnTopLevel)
-	case ast.FN_INIT:
-		_ = p.parseErr(keyword, ReturnFromInit)
 	}
-	var val ast.Expr
+	var val ast.Expr = nil
 	var err error
 	if !p.check(token.SEMICOLON) {
 		val, err = p.expression()
@@ -295,6 +292,10 @@ func (p *Parser) returnStatement() (ast.Stmt, error) {
 	_, err = p.consume(token.SEMICOLON, "Expect ';' after return value")
 	if err != nil {
 		return nil, err
+	}
+
+	if p.curFN == ast.FN_INIT && val != nil {
+		_ = p.parseErr(keyword, ReturnFromInit)
 	}
 	return &ast.Control{Keyword: keyword, Value: val}, nil
 }
