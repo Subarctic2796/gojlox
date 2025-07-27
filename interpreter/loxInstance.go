@@ -2,7 +2,6 @@ package interpreter
 
 import (
 	"fmt"
-	"hash/fnv"
 
 	"github.com/Subarctic2796/gojlox/token"
 )
@@ -36,17 +35,4 @@ func (li *LoxInstance) Get(name *token.Token) (any, error) {
 
 func (li *LoxInstance) Set(name *token.Token, val any) {
 	li.Fields[name.Lexeme] = val
-}
-
-func (li *LoxInstance) Hash() uint {
-	h := fnv.New64a()
-	h.Write([]byte(li.Klass.Name))
-	for k := range li.Klass.Methods {
-		h.Write([]byte(k))
-	}
-	for k, v := range li.Fields {
-		h.Write([]byte(k))
-		h.Write(fmt.Append(nil, v))
-	}
-	return uint(h.Sum64())
 }
