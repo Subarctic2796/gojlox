@@ -39,14 +39,14 @@ const (
 
 // TODO: even if we error we should still return the AST
 type Parser struct {
-	tokens         []*token.Token
+	tokens         []token.Token
 	cur, loopDepth int
 	curClass       clsType
 	curFN          ast.FnType
 	curErr         error
 }
 
-func NewParser(tokens []*token.Token) *Parser {
+func NewParser(tokens []token.Token) *Parser {
 	return &Parser{
 		tokens,
 		0,
@@ -178,6 +178,7 @@ func (p *Parser) lambda(kind ast.FnType) (*ast.Lambda, error) {
 	p.curFN = kind
 	defer func() { p.curFN = prvFn }()
 	msg := fmt.Sprintf("Expect '(' after %s name", kind)
+	fnKeyword := p.previous()
 	_, err := p.consume(token.LPAREN, msg)
 	if err != nil {
 		return nil, err
@@ -214,7 +215,7 @@ func (p *Parser) lambda(kind ast.FnType) (*ast.Lambda, error) {
 	if err != nil {
 		return nil, err
 	}
-	fn := &ast.Function{Name: nil, Params: params, Body: body, Kind: kind}
+	fn := &ast.Function{Name: fnKeyword, Params: params, Body: body, Kind: kind}
 	return &ast.Lambda{Func: fn}, nil
 }
 
@@ -541,9 +542,10 @@ func (p *Parser) desugarOprEQ(get ast.Expr, opr *token.Token, val ast.Expr) ast.
 	}
 	// [ (inst.a) + 23 ]
 	// ^Bin     ^Get
+	tok := token.NewToken(oprType, opr.Lexeme, nil, opr.Line)
 	return &ast.Binary{
 		Left:     get,
-		Operator: token.NewToken(oprType, opr.Lexeme, nil, opr.Line),
+		Operator: &tok,
 		Right:    val,
 	}
 }
@@ -930,8 +932,8 @@ func (p *Parser) checkNext(kind token.TokenType) bool {
 	return p.tokens[p.cur+1].Kind == kind
 }
 
-func (p *Parser) previous() *token.Token { return p.tokens[p.cur-1] }
-func (p *Parser) peek() *token.Token     { return p.tokens[p.cur] }
+func (p *Parser) previous() *token.Token { return &p.tokens[p.cur-1] }
+func (p *Parser) peek() *token.Token     { return &p.tokens[p.cur] }
 func (p *Parser) isAtEnd() bool          { return p.peek().Kind == token.EOF }
 
 func (p *Parser) synchronise() {

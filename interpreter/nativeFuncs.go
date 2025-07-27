@@ -26,27 +26,14 @@ func (ClockFn) Call(args ...any) (any, error) {
 	return float64(time.Now().UnixMilli()) / 1000, nil
 }
 
-func (ClockFn) Arity() int {
-	return 0
-}
-
-func (ClockFn) String() string {
-	return "<native fn clock>"
-}
+func (ClockFn) Arity() int     { return 0 }
+func (ClockFn) String() string { return "<native fn clock>" }
 
 type StringFn struct{}
 
-func (StringFn) Call(args ...any) (any, error) {
-	return fmt.Sprint(args[1]), nil
-}
-
-func (StringFn) Arity() int {
-	return 1
-}
-
-func (StringFn) String() string {
-	return "<native fn string>"
-}
+func (StringFn) Call(args ...any) (any, error) { return fmt.Sprint(args[1]), nil }
+func (StringFn) Arity() int                    { return 1 }
+func (StringFn) String() string                { return "<native fn string>" }
 
 type ParseNumFn struct{}
 
@@ -61,13 +48,8 @@ func (ParseNumFn) Call(args ...any) (any, error) {
 	return nil, fmt.Errorf("argument must be a string")
 }
 
-func (ParseNumFn) Arity() int {
-	return 1
-}
-
-func (ParseNumFn) String() string {
-	return "<native fn parseNum>"
-}
+func (ParseNumFn) Arity() int     { return 1 }
+func (ParseNumFn) String() string { return "<native fn parseNum>" }
 
 type PrintFn struct{}
 
@@ -76,13 +58,8 @@ func (PrintFn) Call(args ...any) (any, error) {
 	return nil, nil
 }
 
-func (PrintFn) Arity() int {
-	return -1
-}
-
-func (PrintFn) String() string {
-	return "<native fn printf>"
-}
+func (PrintFn) Arity() int     { return -1 }
+func (PrintFn) String() string { return "<native fn printf>" }
 
 type LenFn struct{}
 
@@ -92,20 +69,15 @@ func (LenFn) Call(args ...any) (any, error) {
 		return float64(len(t.Items)), nil
 	case string:
 		return float64(len(t)), nil
-	case float64:
-		return nil, fmt.Errorf("can only use 'len' on iterables: got number")
+	case *LoxHashMap:
+		return float64(len(t.Pairs)), nil
 	default:
-		return nil, fmt.Errorf("can only use 'len' on iterables: got %s", t)
+		return nil, fmt.Errorf("can only use 'len' on iterables: got %T", t)
 	}
 }
 
-func (LenFn) Arity() int {
-	return 1
-}
-
-func (LenFn) String() string {
-	return "<native fn len>"
-}
+func (LenFn) Arity() int     { return 1 }
+func (LenFn) String() string { return "<native fn len>" }
 
 type ArrPushFn struct{}
 
@@ -119,13 +91,8 @@ func (ArrPushFn) Call(args ...any) (any, error) {
 	}
 }
 
-func (ArrPushFn) Arity() int {
-	return 2
-}
-
-func (ArrPushFn) String() string {
-	return "<native fn push>"
-}
+func (ArrPushFn) Arity() int     { return 2 }
+func (ArrPushFn) String() string { return "<native fn push>" }
 
 type HashDelKeyFn struct{}
 
@@ -143,10 +110,5 @@ func (HashDelKeyFn) Call(args ...any) (any, error) {
 	}
 }
 
-func (HashDelKeyFn) Arity() int {
-	return 2
-}
-
-func (HashDelKeyFn) String() string {
-	return "<native fn delete>"
-}
+func (HashDelKeyFn) Arity() int     { return 2 }
+func (HashDelKeyFn) String() string { return "<native fn delete>" }

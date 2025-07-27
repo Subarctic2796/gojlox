@@ -17,16 +17,16 @@ var (
 
 type Lexer struct {
 	src              []rune
-	Tokens           []*token.Token
+	Tokens           []token.Token
 	start, cur, Line int
 	curErr           error
 }
 
 func NewLexer(src string) *Lexer {
-	return &Lexer{[]rune(src), make([]*token.Token, 0, 16), 0, 0, 1, nil}
+	return &Lexer{[]rune(src), make([]token.Token, 0, 16), 0, 0, 1, nil}
 }
 
-func (l *Lexer) ScanTokens() ([]*token.Token, error) {
+func (l *Lexer) ScanTokens() ([]token.Token, error) {
 	for !l.isAtEnd() {
 		l.start = l.cur
 		l.scanToken()

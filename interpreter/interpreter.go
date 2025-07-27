@@ -3,7 +3,6 @@ package interpreter
 import (
 	"errors"
 	"fmt"
-	"hash/fnv"
 	"os"
 
 	"github.com/Subarctic2796/gojlox/ast"
@@ -22,6 +21,7 @@ func NewInterpreter() *Interpreter {
 	for name, fn := range NativeFns {
 		globals.Define(name, fn)
 	}
+	tok := token.NewToken(token.NONE, "", nil, -1)
 	return &Interpreter{
 		globals,
 		globals,
@@ -29,7 +29,7 @@ func NewInterpreter() *Interpreter {
 		nil,
 		&ast.Binary{
 			Left:     nil,
-			Operator: token.NewToken(token.NONE, "", nil, -1),
+			Operator: &tok,
 			Right:    nil,
 		},
 	}
@@ -50,32 +50,32 @@ func (i *Interpreter) Resolve(expr ast.Expr, depth int) {
 	i.locals[expr] = depth
 }
 
-func (i *Interpreter) evaluate(exprNode ast.Expr) (any, error) {
-	switch expr := exprNode.(type) {
+func (i *Interpreter) evaluate(expr ast.Expr) (any, error) {
+	switch e := expr.(type) {
 	case *ast.Assign:
-		return i.evalAssign(expr)
+		return i.evalAssign(e)
 	case *ast.Binary:
-		return i.evalBinary(expr)
+		return i.evalBinary(e)
 	case *ast.Grouping:
-		return i.evaluate(expr.Expression)
+		return i.evaluate(e.Expression)
 	case *ast.IndexedGet:
-		return i.evalIndexGet(expr)
+		return i.evalIndexGet(e)
 	case *ast.This:
-		return i.lookUpVariable(expr.Keyword, expr)
+		return i.lookUpVariable(e.Keyword, e)
 	case *ast.Variable:
-		return i.lookUpVariable(expr.Name, expr)
+		return i.lookUpVariable(e.Name, e)
 	case *ast.Lambda:
-		return NewUserFn("", expr.Func, i.env), nil
+		return NewUserFn("", e.Func, i.env), nil
 	case *ast.Literal:
-		return expr.Value, nil
+		return e.Value, nil
 	case *ast.Call:
-		callee, err := i.evaluate(expr.Callee)
+		callee, err := i.evaluate(e.Callee)
 		if err != nil {
 			return nil, err
 		}
-		args := make([]any, 0, len(expr.Arguments))
+		args := make([]any, 0, len(e.Arguments))
 		args = append(args, i)
-		for _, arg := range expr.Arguments {
+		for _, arg := range e.Arguments {
 			a, err := i.evaluate(arg)
 			if err != nil {
 				return nil, err
@@ -86,7 +86,7 @@ func (i *Interpreter) evaluate(exprNode ast.Expr) (any, error) {
 		fn, ok := callee.(LoxCallable)
 		if !ok {
 			return nil, &RunTimeErr{
-				Tok: expr.Paren,
+				Tok: e.Paren,
 				Msg: "Can only call functions and classes",
 			}
 		}
@@ -95,36 +95,36 @@ func (i *Interpreter) evaluate(exprNode ast.Expr) (any, error) {
 		}
 		if len(args)-1 != fn.Arity() {
 			msg := fmt.Sprintf("Expected %d arguments but got %d", fn.Arity(), len(args)-1)
-			return nil, &RunTimeErr{Tok: expr.Paren, Msg: msg}
+			return nil, &RunTimeErr{Tok: e.Paren, Msg: msg}
 		}
 		return fn.Call(args...)
 	case *ast.Get:
-		obj, err := i.evaluate(expr.Object)
+		obj, err := i.evaluate(e.Object)
 		if err != nil {
 			return nil, err
 		}
 		if klass, ok := obj.(*UserClass); ok {
-			static := klass.FindMethod(expr.Name.Lexeme)
+			static := klass.FindMethod(e.Name.Lexeme)
 			if static != nil {
 				if static.Func.Kind != ast.FN_STATIC {
 					return nil, &RunTimeErr{
-						Tok: expr.Name,
-						Msg: fmt.Sprintf("Undefined static function '%s'", expr.Name.Lexeme),
+						Tok: e.Name,
+						Msg: fmt.Sprintf("Undefined static function '%s'", e.Name.Lexeme),
 					}
 				}
 				return static, nil
 			}
 		}
 		if inst, ok := obj.(*LoxInstance); ok {
-			return inst.Get(expr.Name)
+			return inst.Get(e.Name)
 		}
 		return nil, &RunTimeErr{
-			Tok: expr.Name,
+			Tok: e.Name,
 			Msg: "Only instances have properties",
 		}
 	case *ast.HashLiteral:
-		pairs := make(map[uint]*LoxPair)
-		for key, val := range expr.Pairs {
+		pairs := make(map[any]any)
+		for key, val := range e.Pairs {
 			k, err := i.evaluate(key)
 			if err != nil {
 				return nil, err
@@ -133,16 +133,16 @@ func (i *Interpreter) evaluate(exprNode ast.Expr) (any, error) {
 			if err != nil {
 				return nil, err
 			}
-			hash, err := i.hashObj(k, expr.Brace)
+			err = i.hashable(k, e.Brace)
 			if err != nil {
 				return nil, err
 			}
-			pairs[hash] = &LoxPair{k, v}
+			pairs[k] = v
 		}
 		return &LoxHashMap{pairs}, nil
 	case *ast.IndexedSet:
-		tmpErr := &RunTimeErr{Tok: expr.Sqr, Msg: ""}
-		obj, err := i.evaluate(expr.Object)
+		tmpErr := &RunTimeErr{Tok: e.Sqr, Msg: ""}
+		obj, err := i.evaluate(e.Object)
 		if err != nil {
 			return nil, err
 		}
@@ -151,57 +151,57 @@ func (i *Interpreter) evaluate(exprNode ast.Expr) (any, error) {
 			tmpErr.Msg = "Only iterables can be set using an index"
 			return nil, tmpErr
 		}
-		val, err := i.evaluate(expr.Value)
+		val, err := i.evaluate(e.Value)
 		if err != nil {
 			return nil, err
 		}
-		idx, err := i.evaluate(expr.Index)
+		idx, err := i.evaluate(e.Index)
 		if err != nil {
 			return nil, err
 		}
 		err = iter.IndexSet(idx, val)
 		if err != nil {
-			return nil, &RunTimeErr{Tok: expr.Sqr, Msg: fmt.Sprint(err)}
+			return nil, &RunTimeErr{Tok: e.Sqr, Msg: fmt.Sprint(err)}
 		}
 		return val, nil
 	case *ast.Set:
-		obj, err := i.evaluate(expr.Object)
+		obj, err := i.evaluate(e.Object)
 		if err != nil {
 			return nil, err
 		}
 		inst, ok := obj.(*LoxInstance)
 		if !ok {
 			return nil, &RunTimeErr{
-				Tok: expr.Name,
+				Tok: e.Name,
 				Msg: "Only instances have fields",
 			}
 		}
-		val, err := i.evaluate(expr.Value)
+		val, err := i.evaluate(e.Value)
 		if err != nil {
 			return nil, err
 		}
-		inst.Set(expr.Name, val)
+		inst.Set(e.Name, val)
 		return val, nil
 	case *ast.Super:
-		dist := i.locals[expr]
+		dist := i.locals[e]
 		superclass := i.env.GetAt(dist, "super").(*UserClass)
 		obj := i.env.GetAt(dist-1, "this").(*LoxInstance) // 'this' on super
-		method := superclass.FindMethod(expr.Method.Lexeme)
+		method := superclass.FindMethod(e.Method.Lexeme)
 		if method == nil {
 			return nil, &RunTimeErr{
-				Tok: expr.Method,
-				Msg: fmt.Sprintf("Undefined property '%s'", expr.Method.Lexeme),
+				Tok: e.Method,
+				Msg: fmt.Sprintf("Undefined property '%s'", e.Method.Lexeme),
 			}
 		}
 		return method.Bind(obj), nil
 	case *ast.Unary:
-		rhs, err := i.evaluate(expr.Right)
+		rhs, err := i.evaluate(e.Right)
 		if err != nil {
 			return nil, err
 		}
-		switch expr.Operator.Kind {
+		switch e.Operator.Kind {
 		case token.MINUS:
-			r, err := i.checkNumberOperand(expr.Operator, rhs)
+			r, err := i.checkNumberOperand(e.Operator, rhs)
 			if err != nil {
 				return nil, err
 			}
@@ -212,8 +212,8 @@ func (i *Interpreter) evaluate(exprNode ast.Expr) (any, error) {
 		// unreachable
 		return nil, nil
 	case *ast.ArrayLiteral:
-		items := make([]any, 0, len(expr.Elements))
-		for _, elm := range expr.Elements {
+		items := make([]any, 0, len(e.Elements))
+		for _, elm := range e.Elements {
 			e, err := i.evaluate(elm)
 			if err != nil {
 				return nil, err
@@ -222,11 +222,11 @@ func (i *Interpreter) evaluate(exprNode ast.Expr) (any, error) {
 		}
 		return &LoxArray{items}, nil
 	case *ast.Logical:
-		lhs, err := i.evaluate(expr.Left)
+		lhs, err := i.evaluate(e.Left)
 		if err != nil {
 			return nil, err
 		}
-		if expr.Operator.Kind == token.OR {
+		if e.Operator.Kind == token.OR {
 			if i.isTruthy(lhs) {
 				return lhs, nil
 			}
@@ -235,117 +235,117 @@ func (i *Interpreter) evaluate(exprNode ast.Expr) (any, error) {
 				return lhs, nil
 			}
 		}
-		return i.evaluate(expr.Right)
+		return i.evaluate(e.Right)
 	default:
-		panic(fmt.Sprintf("evaluate is unimplemented for '%T'", expr))
+		panic(fmt.Sprintf("evaluate is unimplemented for '%T'", e))
 	}
 }
 
-func (i *Interpreter) execute(stmtNode ast.Stmt) (any, error) {
+func (i *Interpreter) execute(stmt ast.Stmt) (any, error) {
 	var val any
 	var err error
-	switch stmt := stmtNode.(type) {
+	switch s := stmt.(type) {
 	case *ast.Block:
-		return i.executeBlock(stmt.Statements, NewEnv(i.env))
+		return i.executeBlock(s.Statements, NewEnv(i.env))
 	case *ast.Class:
 		var supercls any = nil
 		var err error
-		if stmt.Superclass != nil {
-			supercls, err = i.lookUpVariable(stmt.Superclass.Name, stmt.Superclass)
+		if s.Superclass != nil {
+			supercls, err = i.lookUpVariable(s.Superclass.Name, s.Superclass)
 			if err != nil {
 				return nil, err
 			}
 			if _, ok := supercls.(*UserClass); !ok {
 				return nil, &RunTimeErr{
-					Tok: stmt.Superclass.Name,
+					Tok: s.Superclass.Name,
 					Msg: "Superclass must be a class",
 				}
 			}
 		}
-		i.env.Define(stmt.Name.Lexeme, nil)
-		if stmt.Superclass != nil {
+		i.env.Define(s.Name.Lexeme, nil)
+		if s.Superclass != nil {
 			i.env = NewEnv(i.env)
 			i.env.Define("super", supercls)
 		}
 		methods := make(map[string]*UserFn)
-		for _, method := range stmt.Methods {
+		for _, method := range s.Methods {
 			methods[method.Name.Lexeme] = NewUserFn(method.Name.Lexeme, method, i.env)
 		}
 		scls, _ := supercls.(*UserClass)
-		klass := NewUserClass(stmt.Name.Lexeme, scls, methods)
+		klass := NewUserClass(s.Name.Lexeme, scls, methods)
 		if supercls != nil {
 			i.env = i.env.Enclosing
 		}
-		err = i.env.Assign(stmt.Name, klass)
+		err = i.env.Assign(s.Name, klass)
 		if err != nil {
 			return nil, err
 		}
 		return nil, nil
 	case *ast.Expression:
-		return i.evaluate(stmt.Expression)
+		return i.evaluate(s.Expression)
 	case *ast.If:
-		cond, err := i.evaluate(stmt.Condition)
+		cond, err := i.evaluate(s.Condition)
 		if err != nil {
 			return nil, err
 		}
 		if i.isTruthy(cond) {
-			return i.execute(stmt.ThenBranch)
-		} else if stmt.ElseBranch != nil {
-			return i.execute(stmt.ElseBranch)
+			return i.execute(s.ThenBranch)
+		} else if s.ElseBranch != nil {
+			return i.execute(s.ElseBranch)
 		}
 		return nil, nil
 	case *ast.While:
-		cond, err := i.evaluate(stmt.Condition)
+		cond, err := i.evaluate(s.Condition)
 		if err != nil {
 			return nil, err
 		}
 		for i.isTruthy(cond) {
-			_, err = i.execute(stmt.Body)
+			_, err = i.execute(s.Body)
 			if err != nil {
 				if errors.Is(err, BreakErr) {
 					return nil, nil
 				}
 				return nil, err
 			}
-			cond, err = i.evaluate(stmt.Condition)
+			cond, err = i.evaluate(s.Condition)
 			if err != nil {
 				return nil, err
 			}
 		}
 		return nil, nil
 	case *ast.Function:
-		name := stmt.Name.Lexeme
-		i.env.Define(name, NewUserFn(name, stmt, i.env))
+		name := s.Name.Lexeme
+		i.env.Define(name, NewUserFn(name, s, i.env))
 		return nil, nil
 	case *ast.Print:
-		val, err = i.evaluate(stmt.Expression)
+		val, err = i.evaluate(s.Expression)
 		if err != nil {
 			return nil, err
 		}
 		fmt.Println(i.stringify(val))
 		return nil, nil
 	case *ast.Control:
-		if stmt.Keyword.Kind == token.BREAK {
+		if s.Keyword.Kind == token.BREAK {
 			return nil, BreakErr
 		}
-		if stmt.Value != nil {
-			val, err = i.evaluate(stmt.Value)
+		if s.Value != nil {
+			val, err = i.evaluate(s.Value)
 			if err != nil {
 				return nil, err
 			}
 		}
 		return nil, &ReturnErr{Value: val}
 	case *ast.Var:
-		if stmt.Initializer != nil {
-			val, err = i.evaluate(stmt.Initializer)
+		if s.Initializer != nil {
+			val, err = i.evaluate(s.Initializer)
 			if err != nil {
 				return nil, err
 			}
 		}
-		i.env.Define(stmt.Name.Lexeme, val)
+		i.env.Define(s.Name.Lexeme, val)
 		return nil, nil
 	default:
-		panic(fmt.Sprintf("execute is unimplemented for '%T'", stmt))
+		panic(fmt.Sprintf("execute is unimplemented for '%T'", s))
 	}
 }
 
@@ -552,23 +552,20 @@ func (i *Interpreter) evalIndexGet(expr *ast.IndexedGet) (any, error) {
 	}
 }
 
-func (i *Interpreter) hashObj(obj any, brace *token.Token) (uint, error) {
-	hasher := fnv.New64a()
+func (i *Interpreter) hashable(obj any, brace *token.Token) error {
 	switch val := obj.(type) {
 	case string:
-		hasher.Write([]byte(val))
-		return uint(hasher.Sum64()), nil
+		return nil
 	case float64:
-		return uint(val + 1), nil
+		return nil
 	case bool:
-		if val {
-			return 3, nil
-		}
-		return 5, nil
+		return nil
+	case nil:
+		return nil
 	case *LoxInstance:
-		return val.Hash(), nil
+		return nil
 	default:
-		return 0, &RunTimeErr{
+		return &RunTimeErr{
 			Tok: brace,
 			Msg: fmt.Sprintf("Unhashable type '%T'", val),
 		}
