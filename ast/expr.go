@@ -115,25 +115,7 @@ type Lambda struct {
 	Func *Function
 }
 
-func (expr *Lambda) String() string {
-	return fmt.Sprint(expr.Func)
-	// var sb strings.Builder
-	// if expr.Kind == FN_LAMBDA {
-	// 	sb.WriteString("(fun(")
-	// }
-	// for _, param := range expr.Params {
-	// 	if param != expr.Params[0] {
-	// 		sb.WriteByte(' ')
-	// 	}
-	// 	sb.WriteString(param.Lexeme)
-	// }
-	// sb.WriteString(") ")
-	// for _, s := range expr.Body {
-	// 	sb.WriteString(s.String())
-	// }
-	// sb.WriteString(")")
-	// return sb.String()
-}
+func (expr *Lambda) String() string { return expr.Func.String() }
 
 type Literal struct {
 	Value any
