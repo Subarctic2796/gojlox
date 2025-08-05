@@ -147,8 +147,8 @@ func (r *Resolver) resolveExpr(exprNode ast.Expr) {
 			case *ast.Lambda:
 				r.reportTok(kt.Func.Name, ErrUnHashAble)
 			default:
-				r.resolveExpr(k)
 			}
+			r.resolveExpr(k)
 			r.resolveExpr(v)
 		}
 	case *ast.IndexedGet:
