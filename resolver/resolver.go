@@ -14,7 +14,6 @@ var (
 	ErrAlreadyInScope       = errors.New("Already a variable with this name in this scope")
 	ErrLocalInitializesSelf = errors.New("Can't read local variable in its own initializer")
 	ErrLocalNotRead         = errors.New("Local variable is not used")
-	ErrUnHashAble           = errors.New("Can only use: strings, numbers, bools, and instances as hashmap keys")
 )
 
 type varInfo struct {
@@ -139,15 +138,6 @@ func (r *Resolver) resolveExpr(exprNode ast.Expr) {
 		r.resolveExpr(expr.Expression)
 	case *ast.HashLiteral:
 		for k, v := range expr.Pairs {
-			switch kt := k.(type) {
-			case *ast.ArrayLiteral:
-				r.reportTok(kt.Sqr, ErrUnHashAble)
-			case *ast.HashLiteral:
-				r.reportTok(kt.Brace, ErrUnHashAble)
-			case *ast.Lambda:
-				r.reportTok(kt.Func.Name, ErrUnHashAble)
-			default:
-			}
 			r.resolveExpr(k)
 			r.resolveExpr(v)
 		}

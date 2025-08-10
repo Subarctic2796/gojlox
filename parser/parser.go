@@ -22,6 +22,7 @@ const (
 	SuperInStatic      = "Can't use 'super' in a static method"
 	SuperNotInClass    = "Can't use 'super' outside of a class"
 	SuperNotInSubClass = "Can't use 'super' in a class with no superclass"
+	UnHashable         = "Can only use: strings, numbers, bools, and instances as hashmap keys"
 
 	// not used yet
 	// AlreadyInScope       = "Already a variable with this name in this scope"
@@ -863,6 +864,14 @@ func (p *Parser) finishHashMap() (map[ast.Expr]ast.Expr, error) {
 			key, err := p.expression()
 			if err != nil {
 				return nil, err
+			}
+			switch kt := key.(type) {
+			case *ast.ArrayLiteral:
+				_ = p.parseErr(kt.Sqr, UnHashable)
+			case *ast.HashLiteral:
+				_ = p.parseErr(kt.Brace, UnHashable)
+			case *ast.Lambda:
+				_ = p.parseErr(kt.Func.Name, UnHashable)
 			}
 			_, err = p.consume(token.COLON, "Expect ':' after hashmap key")
 			if err != nil {
