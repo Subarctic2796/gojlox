@@ -92,9 +92,9 @@ func (l *Lexer) scanToken() {
 	case '"':
 		l.addString()
 	default:
-		if l.isDigit(c) {
+		if isDigit(c) {
 			l.addNumber()
-		} else if l.isAlpha(c) {
+		} else if isAlpha(c) {
 			l.identifier()
 		} else {
 			l.report(ErrUnexpectedChar)
@@ -131,31 +131,26 @@ func (l *Lexer) multiLineComment() {
 }
 
 func (l *Lexer) identifier() {
-	for l.isAlphaNumeric(l.peek()) {
+	for isAlpha(l.peek()) || isDigit(l.peek()) {
 		l.advance()
 	}
 	txt := string(l.src[l.start:l.cur])
 	l.addToken(token.LookUpKeyWord(txt))
 }
 
-func (l *Lexer) isAlphaNumeric(c rune) bool {
-	return l.isAlpha(c) || l.isDigit(c)
-}
-
-func (l *Lexer) isAlpha(c rune) bool {
-	return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_'
-}
+func isAlpha(c rune) bool { return c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c == '_' }
+func isDigit(c rune) bool { return c >= '0' && c <= '9' }
 
 func (l *Lexer) addNumber() {
-	for l.isDigit(l.peek()) {
+	for isDigit(l.peek()) {
 		l.advance()
 	}
 
-	if l.peek() == '.' && l.isDigit(l.peekNext()) {
+	if l.peek() == '.' && isDigit(l.peekNext()) {
 		// consume '.'
 		l.advance()
 
-		for l.isDigit(l.peek()) {
+		for isDigit(l.peek()) {
 			l.advance()
 		}
 	}
@@ -172,10 +167,6 @@ func (l *Lexer) peekNext() rune {
 		return 0
 	}
 	return l.src[l.cur+1]
-}
-
-func (l *Lexer) isDigit(c rune) bool {
-	return c >= '0' && c <= '9'
 }
 
 func (l *Lexer) addString() {
