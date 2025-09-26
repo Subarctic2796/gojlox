@@ -44,6 +44,11 @@ func NewResolver(intptr *interpreter.Interpreter) *Resolver {
 	}
 }
 
+func (r *Resolver) Reset() {
+	clear(r.scopes)
+	r.curErr = nil
+}
+
 func (r *Resolver) ResolveStmts(stmts []ast.Stmt) error {
 	for _, s := range stmts {
 		r.resolveStmt(s)

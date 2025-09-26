@@ -48,14 +48,15 @@ type Parser struct {
 }
 
 func NewParser(tokens []token.Token) *Parser {
-	return &Parser{
-		tokens,
-		0,
-		0,
-		cls_NONE,
-		ast.FN_NONE,
-		nil,
-	}
+	return &Parser{tokens, 0, 0, cls_NONE, ast.FN_NONE, nil}
+}
+
+func (p *Parser) Reset(tokens []token.Token) {
+	p.tokens = tokens
+	p.cur, p.loopDepth = 0, 0
+	p.curClass = cls_NONE
+	p.curFN = ast.FN_NONE
+	p.curErr = nil
 }
 
 func (p *Parser) Parse() ([]ast.Stmt, error) {
@@ -66,12 +67,8 @@ func (p *Parser) Parse() ([]ast.Stmt, error) {
 		stmt, _ := p.declaration()
 		stmts = append(stmts, stmt)
 	}
-	// need to check here because we don't want to give
-	// the rest of the pipeline a bad input
-	if p.curErr != nil {
-		return nil, p.curErr
-	}
-	return stmts, nil
+	// don't need to check if there was an error as the caller will check
+	return stmts, p.curErr
 }
 
 func (p *Parser) declaration() (ast.Stmt, error) {

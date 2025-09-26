@@ -14,10 +14,23 @@ import (
 type Lox struct {
 	HadErr        bool
 	HadRunTimeErr bool
+	interpreter   *interpreter.Interpreter
+	resolver      *resolver.Resolver
+	parser        *parser.Parser
+	lexer         *scanner.Lexer
 }
 
 func NewLox() *Lox {
-	return &Lox{false, false}
+	l := Lox{
+		false,
+		false,
+		interpreter.NewInterpreter(),
+		nil,
+		parser.NewParser(nil),
+		scanner.NewLexer(""),
+	}
+	l.resolver = resolver.NewResolver(l.interpreter)
+	return &l
 }
 
 func (l *Lox) RunFile(path string) error {
@@ -26,8 +39,7 @@ func (l *Lox) RunFile(path string) error {
 		fmt.Fprintln(os.Stderr, err)
 		return err
 	}
-	intprt := interpreter.NewInterpreter()
-	err = l.Run(string(f), intprt)
+	err = l.Run(string(f))
 	if err != nil {
 		if l.HadErr {
 			os.Exit(65)
@@ -42,41 +54,40 @@ func (l *Lox) RunFile(path string) error {
 
 func (l *Lox) RunPrompt() error {
 	scnr := bufio.NewScanner(os.Stdin)
-	intprt := interpreter.NewInterpreter()
 	for {
 		fmt.Print("> ")
 		if !scnr.Scan() {
 			fmt.Print("\n")
 			return scnr.Err()
 		}
-		_ = l.Run(scnr.Text(), intprt)
+		_ = l.Run(scnr.Text())
 		l.HadErr, l.HadRunTimeErr = false, false
 	}
 }
 
-func (l *Lox) Run(src string, intprt *interpreter.Interpreter) error {
-	lex := scanner.NewLexer(src)
-	toks, err := lex.ScanTokens()
+func (l *Lox) Run(src string) error {
+	l.lexer.Reset(src)
+	toks, err := l.lexer.ScanTokens()
 	if err != nil {
 		l.HadErr = true
 		return err
 	}
 
-	parser := parser.NewParser(toks)
-	stmts, err := parser.Parse()
+	l.parser.Reset(toks)
+	stmts, err := l.parser.Parse()
 	if err != nil {
 		l.HadErr = true
 		return err
 	}
 
-	rslvr := resolver.NewResolver(intprt)
-	err = rslvr.ResolveStmts(stmts)
+	l.resolver.Reset()
+	err = l.resolver.ResolveStmts(stmts)
 	if err != nil {
 		l.HadErr = true
 		return err
 	}
 
-	err = intprt.Interpret(stmts)
+	err = l.interpreter.Interpret(stmts)
 	if err != nil {
 		l.HadRunTimeErr = true
 		return err

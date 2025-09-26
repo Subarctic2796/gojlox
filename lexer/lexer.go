@@ -26,6 +26,13 @@ func NewLexer(src string) *Lexer {
 	return &Lexer{[]rune(src), make([]token.Token, 0, 16), 0, 0, 1, nil}
 }
 
+func (l *Lexer) Reset(src string) {
+	l.src = []rune(src)
+	l.Tokens = make([]token.Token, 0)
+	l.start, l.cur, l.Line = 0, 0, 1
+	l.curErr = nil
+}
+
 func (l *Lexer) ScanTokens() ([]token.Token, error) {
 	for !l.isAtEnd() {
 		l.start = l.cur
