@@ -73,7 +73,12 @@ func (p *Parser) Parse() ([]ast.Stmt, error) {
 
 func (p *Parser) declaration() (ast.Stmt, error) {
 	if p.match(token.CLASS) {
-		return p.classDeclaration()
+		val, err := p.classDeclaration()
+		if err != nil {
+			p.synchronise()
+			return nil, err
+		}
+		return val, nil
 	}
 	// check for lambdas
 	if p.check(token.FUN) && p.checkNext(token.IDENTIFIER) {
@@ -81,7 +86,12 @@ func (p *Parser) declaration() (ast.Stmt, error) {
 		if err != nil {
 			return nil, err
 		}
-		return p.function(ast.FN_FUNC)
+		val, err := p.function(ast.FN_FUNC)
+		if err != nil {
+			p.synchronise()
+			return nil, err
+		}
+		return val, nil
 	}
 	if p.match(token.VAR) {
 		val, err := p.varDeclaration()
