@@ -1,7 +1,7 @@
 package token
 
 //go:generate go tool stringer -type=TokenType
-type TokenType int
+type TokenType byte
 
 const (
 	NONE TokenType = iota

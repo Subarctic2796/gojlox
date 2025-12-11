@@ -1,6 +1,6 @@
 package interpreter
 
-type LoxType int
+type LoxType byte
 
 const (
 	LOX_NONE LoxType = iota

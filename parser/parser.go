@@ -10,18 +10,18 @@ import (
 )
 
 const (
-	ReturnTopLevel = "Can't return from top-level code"
-	ReturnFromInit = "Can't return a value from an initializer"
+	returnTopLevel = "Can't return from top-level code"
+	returnFromInit = "Can't return a value from an initializer"
 
-	InheritsSelf       = "A class can't inherit from itself"
-	ThisNotInClass     = "Can't use 'this' outside of a class"
-	ThisInStatic       = "Can't use 'this' in a static function"
-	InitIsStatic       = "Can't use 'init' as a static function"
-	StaticNotInClass   = "Can't use 'static' outside of a class"
-	StaticNeedsMethod  = "'static' must be before a class method"
-	SuperInStatic      = "Can't use 'super' in a static method"
-	SuperNotInClass    = "Can't use 'super' outside of a class"
-	SuperNotInSubClass = "Can't use 'super' in a class with no superclass"
+	inheritsSelf       = "A class can't inherit from itself"
+	thisNotInClass     = "Can't use 'this' outside of a class"
+	thisInStatic       = "Can't use 'this' in a static function"
+	initIsStatic       = "Can't use 'init' as a static function"
+	staticNotInClass   = "Can't use 'static' outside of a class"
+	staticNeedsMethod  = "'static' must be before a class method"
+	superInStatic      = "Can't use 'super' in a static method"
+	superNotInClass    = "Can't use 'super' outside of a class"
+	superNotInSubClass = "Can't use 'super' in a class with no superclass"
 	UnHashable         = "Can only use: strings, numbers, bools, and instances as hashmap keys"
 
 	// not used yet
@@ -30,7 +30,7 @@ const (
 	// LocalNotRead         = "Local variable is not used"
 )
 
-type clsType int
+type clsType byte
 
 const (
 	cls_NONE clsType = iota
@@ -127,7 +127,7 @@ func (p *Parser) classDeclaration() (ast.Stmt, error) {
 		if supercls.Name.Lexeme == name.Lexeme {
 			// only report error, this way we don't mess up the state of the parser
 			// it also makes parser errors much less noisy
-			_ = p.parseErr(supercls.Name, InheritsSelf)
+			_ = p.parseErr(supercls.Name, inheritsSelf)
 		}
 		p.curClass = cls_SUBCLASS
 	}
@@ -164,7 +164,7 @@ func (p *Parser) function(kind ast.FnType) (*ast.Function, error) {
 		if kind == ast.FN_STATIC {
 			// only report error, this way we don't mess up the state of the parser
 			// it also makes parser errors much less noisy
-			_ = p.parseErr(name, InitIsStatic)
+			_ = p.parseErr(name, initIsStatic)
 		}
 		kind = ast.FN_INIT
 	}
@@ -288,7 +288,7 @@ func (p *Parser) returnStatement() (ast.Stmt, error) {
 	// only report error, this way we don't mess up the state of the parser
 	// it also makes parser errors much less noisy
 	if p.curFN == ast.FN_NONE {
-		_ = p.parseErr(keyword, ReturnTopLevel)
+		_ = p.parseErr(keyword, returnTopLevel)
 	}
 	var val ast.Expr = nil
 	var err error
@@ -304,7 +304,7 @@ func (p *Parser) returnStatement() (ast.Stmt, error) {
 	}
 
 	if p.curFN == ast.FN_INIT && val != nil {
-		_ = p.parseErr(keyword, ReturnFromInit)
+		_ = p.parseErr(keyword, returnFromInit)
 	}
 	return &ast.Control{Keyword: keyword, Value: val}, nil
 }
@@ -483,9 +483,9 @@ func (p *Parser) expression() (ast.Expr, error) {
 	if p.check(token.STATIC) {
 		switch p.curClass {
 		case cls_NONE:
-			return nil, p.parseErr(p.peek(), StaticNotInClass)
+			return nil, p.parseErr(p.peek(), staticNotInClass)
 		default:
-			return nil, p.parseErr(p.peek(), StaticNeedsMethod)
+			return nil, p.parseErr(p.peek(), staticNeedsMethod)
 		}
 	}
 	return p.assignment()
@@ -734,12 +734,12 @@ func (p *Parser) primary() (ast.Expr, error) {
 		// only report error, this way we don't mess up the state of the parser
 		// it also makes parser errors much less noisy
 		if p.curClass == cls_NONE {
-			_ = p.parseErr(keyword, SuperNotInClass)
+			_ = p.parseErr(keyword, superNotInClass)
 		} else if p.curClass != cls_SUBCLASS {
-			_ = p.parseErr(keyword, SuperNotInSubClass)
+			_ = p.parseErr(keyword, superNotInSubClass)
 		}
 		if p.curFN == ast.FN_STATIC {
-			_ = p.parseErr(keyword, SuperInStatic)
+			_ = p.parseErr(keyword, superInStatic)
 		}
 		_, err := p.consume(token.DOT, "Expect '.' after 'super'")
 		if err != nil {
@@ -755,10 +755,10 @@ func (p *Parser) primary() (ast.Expr, error) {
 		// only report error, this way we don't mess up the state of the parser
 		// it also makes parser errors much less noisy
 		if p.curClass == cls_NONE {
-			_ = p.parseErr(keyword, ThisNotInClass)
+			_ = p.parseErr(keyword, thisNotInClass)
 		}
 		if p.curFN == ast.FN_STATIC {
-			_ = p.parseErr(keyword, ThisInStatic)
+			_ = p.parseErr(keyword, thisInStatic)
 		}
 		return &ast.This{Keyword: keyword}, nil
 	} else if p.match(token.FUN) {
